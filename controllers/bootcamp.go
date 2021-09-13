@@ -9,6 +9,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 )
 
 type Bootcamp struct {
@@ -29,11 +30,12 @@ func (bc *Bootcamp) collection() *mgo.Collection {
 // @route   GET /api/v1/bootcamps
 // @access  Public
 func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
 	var bootcamps models.Bootcamps
 	err := bc.collection().Find(nil).All(&bootcamps)
 	if err != nil {
 		fmt.Println(err)
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusInternalServerError)
 		res := map[string]interface{}{
 			"success": false,
@@ -44,7 +46,6 @@ func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps http
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	res := map[string]interface{}{
 		"success": true,
@@ -60,8 +61,45 @@ func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps http
 // @access  Public
 func (bc *Bootcamp) GetBootcamp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	id := ps.ByName("id")
+
+	// validate id
+	if !bson.IsObjectIdHex(id) {
+		w.WriteHeader(http.StatusBadRequest)
+		res := map[string]interface{}{
+			"success": false,
+			"data":    nil,
+		}
+		bs, _ := json.Marshal(res)
+		w.Write(bs)
+		return
+	}
+
+	var bootcamp models.Bootcamp
+
+	err := bc.collection().FindId(bson.ObjectIdHex(id)).One(&bootcamp)
+	if err != nil {
+		fmt.Println(err)
+
+		w.WriteHeader(http.StatusInternalServerError)
+		res := map[string]interface{}{
+			"success": false,
+			"data":    nil,
+		}
+		bs, _ := json.Marshal(res)
+		w.Write(bs)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("get single bootcamp"))
+	res := map[string]interface{}{
+		"success": true,
+		"data":    bootcamp,
+	}
+	bs, _ := json.Marshal(res)
+	w.Write(bs)
 }
 
 // @desc    Create bootcamp
