@@ -1,24 +1,58 @@
 package controllers
 
 import (
+	"devcamper/models"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/julienschmidt/httprouter"
+	"gopkg.in/mgo.v2"
 )
 
-type Bootcamp struct{}
+type Bootcamp struct {
+	session *mgo.Session
+	db      string
+	c       string
+}
 
-func NewBootcamp() *Bootcamp {
-	return &Bootcamp{}
+func NewBootcamp(s *mgo.Session) *Bootcamp {
+	return &Bootcamp{s, os.Getenv("MONGO_DB"), "bootcamps"}
+}
+
+func (bc *Bootcamp) collection() *mgo.Collection {
+	return bc.session.DB(bc.db).C(bc.c)
 }
 
 // @desc    Get all bootcamps
 // @route   GET /api/v1/bootcamps
 // @access  Public
 func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	var bootcamps models.Bootcamps
+	err := bc.collection().Find(nil).All(&bootcamps)
+	if err != nil {
+		fmt.Println(err)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		res := map[string]interface{}{
+			"success": false,
+			"data":    nil,
+		}
+		bs, _ := json.Marshal(res)
+		w.Write(bs)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("get bootcamps"))
+	res := map[string]interface{}{
+		"success": true,
+		"count":   len(bootcamps),
+		"data":    bootcamps,
+	}
+	bs, _ := json.Marshal(res)
+	w.Write(bs)
 }
 
 // @desc    Get single bootcamp

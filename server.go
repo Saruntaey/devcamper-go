@@ -1,6 +1,7 @@
 package main
 
 import (
+	"devcamper/config"
 	"devcamper/controllers"
 	"net/http"
 
@@ -8,10 +9,13 @@ import (
 )
 
 func main() {
+	// connect to DB
+	s := config.ConnDB()
+
 	r := httprouter.New()
 
 	// bootcamp router
-	bc := controllers.NewBootcamp()
+	bc := controllers.NewBootcamp(s)
 	r.GET("/api/v1/bootcamps", bc.GetBootcamps)
 	r.GET("/api/v1/bootcamps/:id", bc.GetBootcamp)
 	r.POST("/api/v1/bootcamps", bc.CreateBootcamp)
