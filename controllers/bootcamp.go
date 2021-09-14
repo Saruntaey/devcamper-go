@@ -117,9 +117,37 @@ func (bc *Bootcamp) CreateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 // @route   PUT /api/v1/bootcamps/:id
 // @access  Private
 func (bc *Bootcamp) UpdateBootcamp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("update bootcamp"))
+	id := ps.ByName("id")
+	if !bson.IsObjectIdHex(id) {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bootcamp id not in correct format"))
+		return
+	}
+	var newBootcamp models.Bootcamp
+	json.NewDecoder(r.Body).Decode(&newBootcamp)
+	err := bc.collection().UpdateId(bson.ObjectIdHex(id), newBootcamp)
+	if err != nil {
+		fmt.Println("UpdateBootcamp err: ", err)
+		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+		return
+	}
+	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    id,
+	})
+	// var bootcamp models.Bootcamp
+	// err := bc.collection().FindId(bson.ObjectIdHex(id)).One(&bootcamp)
+	// if err != nil {
+	// 	fmt.Println("UpdateBootcamp err: ", err)
+	// 	utils.SendJSON(w, http.StatusInternalServerError, errors.New("server error"))
+	// 	return
+	// }
+	// var newBootcamp models.Bootcamp
+	// err = json.NewDecoder(r.Body).Decode(&newBootcamp)
+	// if err != nil {
+	// 	fmt.Print("UpdateBootcamp err: ", err)
+	// 	utils.SendJSON(w, http.StatusInternalServerError, errors.New("server error"))
+	// 	return
+	// }
 }
 
 // @desc    Delete bootcamp

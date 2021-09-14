@@ -3,7 +3,6 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -40,17 +39,15 @@ func GetLocation(add string) *Location {
 	resp, err := http.Get(uri)
 	if err != nil {
 		// handle error
-		fmt.Println(err)
+		log.Println(err)
 	}
 	defer resp.Body.Close()
-
-	bs, _ := io.ReadAll(resp.Body)
-
 	var loc Location
-	err = json.Unmarshal(bs, &loc)
+	json.NewDecoder(resp.Body).Decode(&loc)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Decode bad data: ", err)
 	}
+
 	return &loc
 
 }
