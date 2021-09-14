@@ -3,10 +3,12 @@ package controllers
 import (
 	"devcamper/models"
 	"devcamper/utils"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"gopkg.in/mgo.v2"
@@ -41,12 +43,11 @@ func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps http
 		return
 	}
 
-	data := map[string]interface{}{
+	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"count":   len(bootcamps),
 		"data":    bootcamps,
-	}
-	utils.SendJSON(w, http.StatusOK, data)
+	})
 }
 
 // @desc    Get single bootcamp
@@ -71,20 +72,35 @@ func (bc *Bootcamp) GetBootcamp(w http.ResponseWriter, r *http.Request, ps httpr
 		return
 	}
 
-	data := map[string]interface{}{
+	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    bootcamp,
-	}
-	utils.SendJSON(w, http.StatusOK, data)
+	})
 }
 
 // @desc    Create bootcamp
 // @route   POST /api/v1/bootcamps
 // @access  Private
 func (bc *Bootcamp) CreateBootcamp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("create bootcamp"))
+	var bootcamp models.Bootcamp
+	err := json.NewDecoder(r.Body).Decode(&bootcamp)
+	if err != nil {
+		fmt.Println("CreateBootcamp err: ", err)
+	}
+
+	bootcamp.Id = bson.NewObjectId()
+	bootcamp.CreatedAt = time.Now()
+
+	err = bc.collection().Insert(bootcamp)
+	if err != nil {
+		fmt.Println("CreateBootcamp err: ", err)
+		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+		return
+	}
+	utils.SendJSON(w, http.StatusCreated, map[string]interface{}{
+		"success": true,
+		"data":    bootcamp,
+	})
 }
 
 // @desc    Update bootcamp
