@@ -1,6 +1,7 @@
 package models
 
 import (
+	"devcamper/utils"
 	"errors"
 	"regexp"
 	"time"
@@ -11,7 +12,7 @@ import (
 
 type GeoJson struct {
 	Type             string    `json:"type,omitempty" bson:"type,omitempty"`
-	Coordinates      []float32 `json:"coordinates,omitempty" bson:"coordinates,omitempty"`
+	Coordinates      []float64 `json:"coordinates,omitempty" bson:"coordinates,omitempty"`
 	FormattedAddress string    `json:"formattedAddress,omitempty" bson:"formattedAddress,omitempty"`
 	Street           string    `json:"street,omitempty" bson:"street,omitempty"`
 	City             string    `json:"city,omitempty" bson:"city,omitempty"`
@@ -30,7 +31,7 @@ type Bootcamp struct {
 	Email         string        `json:"email,omitempty" bson:"email,omitempty"`
 	Address       string        `json:"address,omitempty" bson:"address,omitempty"`
 	Location      GeoJson       `json:"location,omitempty" bson:"location,omitempty"`
-	AverageRating float32       `json:"averageRating" bson:"averageRating"`
+	AverageRating float64       `json:"averageRating" bson:"averageRating"`
 	AverageCost   int           `json:"averageCost" bson:"averageCost"`
 	Photo         string        `json:"photo,omitempty" bson:"photo,omitempty"`
 	Housing       bool          `json:"housing" bson:"housing"`
@@ -43,7 +44,7 @@ type Bootcamp struct {
 
 type Bootcamps []Bootcamp
 
-func (bc *Bootcamp) ValidateData(c *mgo.Collection) error {
+func (bc *Bootcamp) ValidateData(c *mgo.Collection, init bool) error {
 	// make field to contain only unique value
 	c.EnsureIndex(mgo.Index{
 		Key:        []string{"name"},
@@ -65,6 +66,41 @@ func (bc *Bootcamp) ValidateData(c *mgo.Collection) error {
 	if re := regexp.MustCompile(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`); !re.Match([]byte(bc.Website)) {
 		return errors.New("please use a valid URL with HTTP or HTTPS")
 	}
+	if len(bc.Phone) > 20 {
+		return errors.New("phone can not be more than 20 characters")
+	}
+	if re := regexp.MustCompile(`^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$`); !re.Match([]byte(bc.Email)) {
+		return errors.New("please add a vaild email")
+	}
+	if bc.Photo == "" {
+		bc.Photo = "no-photo.jpg"
+	}
+
+	// to be check for newly create bootcamp
+	if init {
+		// address is required only on create new bootcamp (not reqried on update)
+		if bc.Address == "" {
+			return errors.New("pleas add an address")
+		}
+
+		loc := utils.GetLocation(bc.Address)
+		// convert data to GeoJson type
+		l := loc.Results[0].Locations[0]
+
+		bc.Location = GeoJson{
+			"Point",
+			[]float64{l.LatLng.Lng, l.LatLng.Lat},
+			l.Street + ", " + l.City + ", " + l.State + " " + l.Zipcode + ", " + l.Country,
+			l.Street,
+			l.City,
+			l.State,
+			l.Zipcode,
+			l.Country,
+		}
+
+		bc.Address = ""
+	}
+
 	bc.Id = bson.NewObjectId()
 	bc.CreatedAt = time.Now()
 

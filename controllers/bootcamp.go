@@ -89,7 +89,7 @@ func (bc *Bootcamp) CreateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 		return
 	}
 
-	err = bootcamp.ValidateData(bc.collection())
+	err = bootcamp.ValidateData(bc.collection(), true)
 
 	if err != nil {
 		fmt.Println("CreateBootcamp err: ", err)
