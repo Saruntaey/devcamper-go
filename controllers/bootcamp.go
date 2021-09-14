@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"gopkg.in/mgo.v2"
@@ -86,14 +85,25 @@ func (bc *Bootcamp) CreateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 	err := json.NewDecoder(r.Body).Decode(&bootcamp)
 	if err != nil {
 		fmt.Println("CreateBootcamp err: ", err)
+		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+		return
 	}
 
-	bootcamp.Id = bson.NewObjectId()
-	bootcamp.CreatedAt = time.Now()
+	err = bootcamp.ValidateData(bc.collection())
+
+	if err != nil {
+		fmt.Println("CreateBootcamp err: ", err)
+		utils.ErrorResponse(w, http.StatusBadRequest, err)
+		return
+	}
 
 	err = bc.collection().Insert(bootcamp)
 	if err != nil {
 		fmt.Println("CreateBootcamp err: ", err)
+		if mgo.IsDup(err) {
+			utils.ErrorResponse(w, http.StatusBadRequest, errors.New("duplicate field value enter"))
+			return
+		}
 		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
 		return
 	}
