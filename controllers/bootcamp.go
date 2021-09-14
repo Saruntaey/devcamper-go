@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"devcamper/models"
-	"encoding/json"
+	"devcamper/utils"
 	"fmt"
 	"net/http"
 	"os"
@@ -30,49 +30,43 @@ func (bc *Bootcamp) collection() *mgo.Collection {
 // @route   GET /api/v1/bootcamps
 // @access  Public
 func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	var bootcamps models.Bootcamps
 	err := bc.collection().Find(nil).All(&bootcamps)
 	if err != nil {
 		fmt.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
+
 		res := map[string]interface{}{
 			"success": false,
 			"data":    nil,
 		}
-		bs, _ := json.Marshal(res)
-		w.Write(bs)
+		utils.SendJSON(w, res, http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
 	res := map[string]interface{}{
 		"success": true,
 		"count":   len(bootcamps),
 		"data":    bootcamps,
 	}
-	bs, _ := json.Marshal(res)
-	w.Write(bs)
+	utils.SendJSON(w, res, http.StatusOK)
 }
 
 // @desc    Get single bootcamp
 // @route   GET /api/v1/bootcamps/:id
 // @access  Public
 func (bc *Bootcamp) GetBootcamp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	id := ps.ByName("id")
 
 	// validate id
 	if !bson.IsObjectIdHex(id) {
-		w.WriteHeader(http.StatusBadRequest)
 		res := map[string]interface{}{
 			"success": false,
+			"error":   "Bootcamp id not in correct format",
 			"data":    nil,
 		}
-		bs, _ := json.Marshal(res)
-		w.Write(bs)
+		utils.SendJSON(w, res, http.StatusBadRequest)
 		return
 	}
 
@@ -82,24 +76,20 @@ func (bc *Bootcamp) GetBootcamp(w http.ResponseWriter, r *http.Request, ps httpr
 	if err != nil {
 		fmt.Println(err)
 
-		w.WriteHeader(http.StatusInternalServerError)
 		res := map[string]interface{}{
 			"success": false,
+			"error":   "Server error",
 			"data":    nil,
 		}
-		bs, _ := json.Marshal(res)
-		w.Write(bs)
+		utils.SendJSON(w, res, http.StatusBadRequest)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
 	res := map[string]interface{}{
 		"success": true,
 		"data":    bootcamp,
 	}
-	bs, _ := json.Marshal(res)
-	w.Write(bs)
+	utils.SendJSON(w, res, http.StatusOK)
 }
 
 // @desc    Create bootcamp
