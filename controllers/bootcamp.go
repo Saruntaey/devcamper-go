@@ -3,6 +3,7 @@ package controllers
 import (
 	"devcamper/models"
 	"devcamper/utils"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -34,22 +35,18 @@ func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps http
 	var bootcamps models.Bootcamps
 	err := bc.collection().Find(nil).All(&bootcamps)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("GetBootcamps err: ", err)
 
-		res := map[string]interface{}{
-			"success": false,
-			"data":    nil,
-		}
-		utils.SendJSON(w, res, http.StatusInternalServerError)
+		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
 		return
 	}
 
-	res := map[string]interface{}{
+	data := map[string]interface{}{
 		"success": true,
 		"count":   len(bootcamps),
 		"data":    bootcamps,
 	}
-	utils.SendJSON(w, res, http.StatusOK)
+	utils.SendJSON(w, http.StatusOK, data)
 }
 
 // @desc    Get single bootcamp
@@ -61,12 +58,7 @@ func (bc *Bootcamp) GetBootcamp(w http.ResponseWriter, r *http.Request, ps httpr
 
 	// validate id
 	if !bson.IsObjectIdHex(id) {
-		res := map[string]interface{}{
-			"success": false,
-			"error":   "Bootcamp id not in correct format",
-			"data":    nil,
-		}
-		utils.SendJSON(w, res, http.StatusBadRequest)
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bootcamp id not in correct format"))
 		return
 	}
 
@@ -74,22 +66,16 @@ func (bc *Bootcamp) GetBootcamp(w http.ResponseWriter, r *http.Request, ps httpr
 
 	err := bc.collection().FindId(bson.ObjectIdHex(id)).One(&bootcamp)
 	if err != nil {
-		fmt.Println(err)
-
-		res := map[string]interface{}{
-			"success": false,
-			"error":   "Server error",
-			"data":    nil,
-		}
-		utils.SendJSON(w, res, http.StatusBadRequest)
+		fmt.Println("GetBootcamp err: ", err)
+		utils.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("not found bootcamp with the id of %s", id))
 		return
 	}
 
-	res := map[string]interface{}{
+	data := map[string]interface{}{
 		"success": true,
 		"data":    bootcamp,
 	}
-	utils.SendJSON(w, res, http.StatusOK)
+	utils.SendJSON(w, http.StatusOK, data)
 }
 
 // @desc    Create bootcamp
