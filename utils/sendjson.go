@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func SendJSON(w http.ResponseWriter, status int, data interface{}) {
@@ -15,10 +16,15 @@ func SendJSON(w http.ResponseWriter, status int, data interface{}) {
 	}
 }
 
-func ErrorResponse(w http.ResponseWriter, status int, err error) {
+func ErrorResponse(w http.ResponseWriter, status int, err ...error) {
+	var errText string
+	for _, e := range err {
+		errText += e.Error() + ", "
+	}
+	errText = strings.TrimRight(errText, ", ")
 	data := map[string]interface{}{
 		"success": false,
-		"error":   err.Error(),
+		"error":   errText,
 		"data":    nil,
 	}
 	SendJSON(w, status, data)
