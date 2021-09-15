@@ -3,46 +3,36 @@ package controllers
 import (
 	"devcamper/models"
 	"devcamper/utils"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/julienschmidt/httprouter"
-	"gopkg.in/mgo.v2"
+	"github.com/zebresel-com/mongodm"
 	"gopkg.in/mgo.v2/bson"
 )
 
 type Bootcamp struct {
-	session *mgo.Session
-	db      string
-	c       string
+	connection *mongodm.Connection
 }
 
-func NewBootcamp(s *mgo.Session) *Bootcamp {
-	return &Bootcamp{s, os.Getenv("MONGO_DB"), "bootcamps"}
-}
-
-func (bc *Bootcamp) collection() *mgo.Collection {
-	return bc.session.DB(bc.db).C(bc.c)
+func NewBootcamp(conn *mongodm.Connection) *Bootcamp {
+	return &Bootcamp{conn}
 }
 
 // @desc    Get all bootcamps
 // @route   GET /api/v1/bootcamps
 // @access  Public
 func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	Bootcamp := bc.connection.Model("Bootcamp")
+	bootcamps := []*models.Bootcamp{}
 
-	var bootcamps models.Bootcamps
-	err := bc.collection().Find(nil).All(&bootcamps)
+	err := Bootcamp.Find().Exec(bootcamps)
 	if err != nil {
-		fmt.Println("GetBootcamps err: ", err)
-
+		log.Println(err)
 		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
-		return
 	}
-
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"count":   len(bootcamps),
@@ -54,24 +44,23 @@ func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps http
 // @route   GET /api/v1/bootcamps/:id
 // @access  Public
 func (bc *Bootcamp) GetBootcamp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	Bootcamp := bc.connection.Model("Bootcamp")
+	bootcamp := &models.Bootcamp{}
 
 	id := ps.ByName("id")
-
-	// validate id
 	if !bson.IsObjectIdHex(id) {
-		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bootcamp id not in correct format"))
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("invalid bootcamp id format"))
 		return
 	}
-
-	var bootcamp models.Bootcamp
-
-	err := bc.collection().FindId(bson.ObjectIdHex(id)).One(&bootcamp)
-	if err != nil {
-		fmt.Println("GetBootcamp err: ", err)
-		utils.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("not found bootcamp with the id of %s", id))
+	err := Bootcamp.FindId(bson.ObjectIdHex(id)).Exec(bootcamp)
+	if _, ok := err.(*mongodm.NotFoundError); ok {
+		utils.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("not found bootcamp with id of %s", id))
+		return
+	} else if err != nil {
+		log.Println(err)
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("server error"))
 		return
 	}
-
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    bootcamp,
@@ -82,111 +71,14 @@ func (bc *Bootcamp) GetBootcamp(w http.ResponseWriter, r *http.Request, ps httpr
 // @route   POST /api/v1/bootcamps
 // @access  Private
 func (bc *Bootcamp) CreateBootcamp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	var bootcamp models.Bootcamp
-	err := json.NewDecoder(r.Body).Decode(&bootcamp)
-	if err != nil {
-		fmt.Println("CreateBootcamp err: ", err)
-		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
-		return
-	}
 
-	err = bootcamp.ValidateData(bc.collection(), true)
-
-	if err != nil {
-		fmt.Println("CreateBootcamp err: ", err)
-		utils.ErrorResponse(w, http.StatusBadRequest, err)
-		return
-	}
-
-	err = bc.collection().Insert(bootcamp)
-	if err != nil {
-		fmt.Println("CreateBootcamp err: ", err)
-		if mgo.IsDup(err) {
-			utils.ErrorResponse(w, http.StatusBadRequest, errors.New("duplicate field value enter"))
-			return
-		}
-		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
-		return
-	}
-	utils.SendJSON(w, http.StatusCreated, map[string]interface{}{
-		"success": true,
-		"data":    bootcamp,
-	})
 }
 
 // @desc    Update bootcamp
 // @route   PUT /api/v1/bootcamps/:id
 // @access  Private
 func (bc *Bootcamp) UpdateBootcamp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
-	if !bson.IsObjectIdHex(id) {
-		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bootcamp id not in correct format"))
-		return
-	}
 
-	// var reqData models.Bootcamp
-	// json.NewDecoder(r.Body).Decode(&reqData)
-	// reqData.Id = bson.ObjectIdHex(id)
-
-	// updateField, err := bson.Marshal(reqData)
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-	var updateField bson.M
-	json.NewDecoder(r.Body).Decode(&updateField)
-	change := mgo.Change{
-		Update:    bson.M{"$unset": updateField},
-		ReturnNew: true,
-	}
-
-	var newBootcamp bson.M
-	info, err := bc.collection().FindId(bson.ObjectIdHex(id)).Apply(change, &newBootcamp)
-	if err != nil {
-		log.Println(err)
-		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("server error"))
-		return
-	}
-	fmt.Println(info)
-
-	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
-		"success": true,
-		"data":    newBootcamp,
-	})
-	// var newBootcamp models.Bootcamp
-	// err = bc.collection().FindId(bson.ObjectIdHex(id)).One(&newBootcamp)
-	// if err != nil {
-	// 	log.Println(err)
-	// 	utils.ErrorResponse(w, http.StatusBadRequest, errors.New("server error"))
-	// 	return
-	// }
-	// utils.SendJSON(w, http.StatusOK, updateField)
-
-	// var newBootcamp models.Bootcamp
-	// json.NewDecoder(r.Body).Decode(&newBootcamp)
-	// err := bc.collection().UpdateId(bson.ObjectIdHex(id), newBootcamp)
-	// if err != nil {
-	// 	fmt.Println("UpdateBootcamp err: ", err)
-	// 	utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
-	// 	return
-	// }
-	// utils.SendJSON(w, http.StatusOK, map[string]interface{}{
-	// 	"success": true,
-	// 	"data":    id,
-	// })
-	// var bootcamp models.Bootcamp
-	// err := bc.collection().FindId(bson.ObjectIdHex(id)).One(&bootcamp)
-	// if err != nil {
-	// 	fmt.Println("UpdateBootcamp err: ", err)
-	// 	utils.SendJSON(w, http.StatusInternalServerError, errors.New("server error"))
-	// 	return
-	// }
-	// var newBootcamp models.Bootcamp
-	// err = json.NewDecoder(r.Body).Decode(&newBootcamp)
-	// if err != nil {
-	// 	fmt.Print("UpdateBootcamp err: ", err)
-	// 	utils.SendJSON(w, http.StatusInternalServerError, errors.New("server error"))
-	// 	return
-	// }
 }
 
 // @desc    Delete bootcamp

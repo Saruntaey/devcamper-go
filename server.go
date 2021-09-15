@@ -3,6 +3,7 @@ package main
 import (
 	"devcamper/config"
 	"devcamper/controllers"
+	"devcamper/models"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
@@ -10,12 +11,15 @@ import (
 
 func main() {
 	// connect to DB
-	s := config.ConnDB()
+	conn := config.ConnDB()
+
+	// mount models to DB
+	conn.Register(&models.Bootcamp{}, "bootcamps")
 
 	r := httprouter.New()
 
 	// bootcamp router
-	bc := controllers.NewBootcamp(s)
+	bc := controllers.NewBootcamp(conn)
 	r.GET("/api/v1/bootcamps", bc.GetBootcamps)
 	r.GET("/api/v1/bootcamps/:id", bc.GetBootcamp)
 	r.POST("/api/v1/bootcamps", bc.CreateBootcamp)

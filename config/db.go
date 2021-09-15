@@ -2,18 +2,23 @@ package config
 
 import (
 	"fmt"
-	"log"
 	"os"
 
-	"gopkg.in/mgo.v2"
+	"github.com/zebresel-com/mongodm"
 )
 
-func ConnDB() *mgo.Session {
+func ConnDB() *mongodm.Connection {
 	uri := os.Getenv("MONGO_URI")
-	s, err := mgo.Dial(uri)
+	dbConfig := &mongodm.Config{
+		DatabaseHosts: []string{uri},
+		DatabaseName:  os.Getenv("MONGO_DB"),
+	}
+
+	connection, err := mongodm.Connect(dbConfig)
+
 	if err != nil {
-		log.Fatal(err)
+		fmt.Printf("Database connection error: %v", err)
 	}
 	fmt.Printf("Connected to mongodb at %s\n", uri)
-	return s
+	return connection
 }
