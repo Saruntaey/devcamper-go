@@ -4,7 +4,10 @@ import (
 	"devcamper/config"
 	"devcamper/controllers"
 	"devcamper/models"
+	"fmt"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -26,5 +29,8 @@ func main() {
 	r.PUT("/api/v1/bootcamps/:id", bc.UpdateBootcamp)
 	r.DELETE("/api/v1/bootcamps/:id", bc.DeleteBootcamp)
 
-	http.ListenAndServe(":8080", r)
+	port := os.Getenv("PORT")
+	port = fmt.Sprint(":", port)
+	fmt.Printf("Listening on port %s\n", port)
+	log.Fatalln(http.ListenAndServe(port, r))
 }
