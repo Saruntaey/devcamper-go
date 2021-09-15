@@ -39,7 +39,7 @@ type Bootcamp struct {
 	JobGuarantee  bool          `json:"jobGuarantee" bson:"jobGuarantee"`
 	AcceptGi      bool          `json:"acceptGi" bson:"acceptGi"`
 	CreatedAt     time.Time     `json:"createdAt" bson:"createdAt"`
-	User          bson.ObjectId `json:"user,omitempty" bson:"user,omitempty"`
+	// User          bson.ObjectId `json:"user,omitempty" bson:"user,omitempty"`
 }
 
 type Bootcamps []Bootcamp

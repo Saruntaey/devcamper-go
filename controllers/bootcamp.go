@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 
@@ -122,18 +123,56 @@ func (bc *Bootcamp) UpdateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bootcamp id not in correct format"))
 		return
 	}
-	var newBootcamp models.Bootcamp
-	json.NewDecoder(r.Body).Decode(&newBootcamp)
-	err := bc.collection().UpdateId(bson.ObjectIdHex(id), newBootcamp)
+
+	// var reqData models.Bootcamp
+	// json.NewDecoder(r.Body).Decode(&reqData)
+	// reqData.Id = bson.ObjectIdHex(id)
+
+	// updateField, err := bson.Marshal(reqData)
+	// if err != nil {
+	// 	log.Println(err)
+	// }
+	var updateField bson.M
+	json.NewDecoder(r.Body).Decode(&updateField)
+	change := mgo.Change{
+		Update:    bson.M{"$unset": updateField},
+		ReturnNew: true,
+	}
+
+	var newBootcamp bson.M
+	info, err := bc.collection().FindId(bson.ObjectIdHex(id)).Apply(change, &newBootcamp)
 	if err != nil {
-		fmt.Println("UpdateBootcamp err: ", err)
-		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+		log.Println(err)
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("server error"))
 		return
 	}
+	fmt.Println(info)
+
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"data":    id,
+		"data":    newBootcamp,
 	})
+	// var newBootcamp models.Bootcamp
+	// err = bc.collection().FindId(bson.ObjectIdHex(id)).One(&newBootcamp)
+	// if err != nil {
+	// 	log.Println(err)
+	// 	utils.ErrorResponse(w, http.StatusBadRequest, errors.New("server error"))
+	// 	return
+	// }
+	// utils.SendJSON(w, http.StatusOK, updateField)
+
+	// var newBootcamp models.Bootcamp
+	// json.NewDecoder(r.Body).Decode(&newBootcamp)
+	// err := bc.collection().UpdateId(bson.ObjectIdHex(id), newBootcamp)
+	// if err != nil {
+	// 	fmt.Println("UpdateBootcamp err: ", err)
+	// 	utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+	// 	return
+	// }
+	// utils.SendJSON(w, http.StatusOK, map[string]interface{}{
+	// 	"success": true,
+	// 	"data":    id,
+	// })
 	// var bootcamp models.Bootcamp
 	// err := bc.collection().FindId(bson.ObjectIdHex(id)).One(&bootcamp)
 	// if err != nil {
