@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/zebresel-com/mongodm"
@@ -17,7 +18,7 @@ func ConnDB() *mongodm.Connection {
 	connection, err := mongodm.Connect(dbConfig)
 
 	if err != nil {
-		fmt.Printf("Database connection error: %v", err)
+		log.Fatalf("Database connection error: %v\n", err)
 	}
 	fmt.Printf("Connected to mongodb at %s\n", uri)
 	return connection
