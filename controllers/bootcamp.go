@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/zebresel-com/mongodm"
@@ -26,10 +28,24 @@ func NewBootcamp(conn *mongodm.Connection) *Bootcamp {
 // @route   GET /api/v1/bootcamps
 // @access  Public
 func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	// advance result (sort, selct, limit , etc.)
+	type query struct {
+		Select string
+		Sort   string
+		Page   int
+		Limit  int
+	}
+	err := r.ParseForm()
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
+	}
+	q := extractData(r.Form)
+	utils.SendJSON(w, http.StatusOK, q)
+	return
 	Bootcamp := bc.connection.Model("Bootcamp")
 	bootcamps := []*models.Bootcamp{}
 
-	err := Bootcamp.Find(bson.M{"deleted": false}).Exec(&bootcamps)
+	err = Bootcamp.Find(bson.M{"deleted": false}).Exec(&bootcamps)
 	if err != nil {
 		log.Println(err)
 		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
@@ -197,4 +213,38 @@ func (bc *Bootcamp) DeleteBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 		"success": true,
 		"data":    nil,
 	})
+}
+
+func extractData(data map[string][]string) map[string]interface{} {
+	dataFormated := map[string]interface{}{}
+	for k, v := range data {
+		// extract data
+		var key string
+		var val interface{}
+		ks := strings.Split(k, "[")
+		if len(ks) == 1 {
+			key = ks[0]
+			s := v[0]
+			// convert data type
+			if d, err := strconv.ParseInt(s, 0, 64); err == nil {
+				val = d
+			} else if d, err := strconv.ParseFloat(s, 64); err == nil {
+				val = d
+			} else if d, err := strconv.ParseBool(s); err == nil {
+				val = d
+			} else {
+				val = s
+			}
+		} else {
+			key = ks[0]
+			nested := map[string][]string{
+				strings.TrimRight(ks[1], "]"): v,
+			}
+			val = extractData(nested)
+		}
+
+		dataFormated[key] = val
+
+	}
+	return dataFormated
 }
