@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -29,29 +30,33 @@ func NewBootcamp(conn *mongodm.Connection) *Bootcamp {
 // @access  Public
 func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// advance result (sort, selct, limit , etc.)
-	type query struct {
-		Select string
-		Sort   string
-		Page   int
-		Limit  int
-	}
+	// type query struct {
+	// 	Select string
+	// 	Sort   string
+	// 	Page   int
+	// 	Limit  int
+	// }
 	err := r.ParseForm()
 	if err != nil {
 		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
+		return
 	}
 	q := extractData(r.Form)
+	q["deleted"] = false
 	utils.SendJSON(w, http.StatusOK, q)
 	return
 	Bootcamp := bc.connection.Model("Bootcamp")
 	bootcamps := []*models.Bootcamp{}
 
-	err = Bootcamp.Find(bson.M{"deleted": false}).Exec(&bootcamps)
+	err = Bootcamp.Find(q).Exec(&bootcamps)
 	if err != nil {
 		log.Println(err)
 		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+		return
 	}
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
+		"q":       q,
 		"count":   len(bootcamps),
 		"data":    bootcamps,
 	})
@@ -217,6 +222,7 @@ func (bc *Bootcamp) DeleteBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 
 func extractData(data map[string][]string) map[string]interface{} {
 	dataFormated := map[string]interface{}{}
+	operator := []string{"gt", "gte", "lt", "lte", "in"}
 	for k, v := range data {
 		// extract data
 		var key string
@@ -224,16 +230,30 @@ func extractData(data map[string][]string) map[string]interface{} {
 		ks := strings.Split(k, "[")
 		if len(ks) == 1 {
 			key = ks[0]
-			s := v[0]
+			// insert operator
+			for _, o := range operator {
+				if key == o {
+					key = fmt.Sprintf("$%s", key)
+				}
+			}
 			// convert data type
-			if d, err := strconv.ParseInt(s, 0, 64); err == nil {
-				val = d
-			} else if d, err := strconv.ParseFloat(s, 64); err == nil {
-				val = d
-			} else if d, err := strconv.ParseBool(s); err == nil {
-				val = d
+			vType := []interface{}{}
+			for _, s := range v {
+				if d, err := strconv.ParseInt(s, 0, 64); err == nil {
+					vType = append(vType, d)
+				} else if d, err := strconv.ParseFloat(s, 64); err == nil {
+					vType = append(vType, d)
+				} else if d, err := strconv.ParseBool(s); err == nil {
+					vType = append(vType, d)
+				} else {
+					vType = append(vType, s)
+				}
+			}
+
+			if len(vType) == 1 {
+				val = vType[0]
 			} else {
-				val = s
+				val = vType
 			}
 		} else {
 			key = ks[0]
@@ -243,8 +263,46 @@ func extractData(data map[string][]string) map[string]interface{} {
 			val = extractData(nested)
 		}
 
-		dataFormated[key] = val
+		// check if data exist in dataFormated
+		if v, ok := dataFormated[key]; ok {
+			refVal := reflect.ValueOf(v)
+			if refVal.Kind() == reflect.Map {
+				comb := map[string]interface{}{}
 
+				for _, mKey := range refVal.MapKeys() {
+					comb[fmt.Sprintf("%s", mKey)] = stringToType(fmt.Sprintf("%v", refVal.MapIndex(mKey)))
+					fmt.Println("old", refVal.MapIndex(mKey))
+				}
+
+				newRefVal := reflect.ValueOf(val)
+				for _, nKey := range newRefVal.MapKeys() {
+					comb[fmt.Sprintf("%s", nKey)] = stringToType(fmt.Sprintf("%v", newRefVal.MapIndex(nKey)))
+					fmt.Println("new", newRefVal.MapIndex(nKey))
+				}
+				val = comb
+				// fmt.Println(key, val)
+			} else {
+				vs := []interface{}{v}
+				val = append(vs, val)
+			}
+
+		}
+		dataFormated[key] = val
 	}
 	return dataFormated
+}
+
+func stringToType(s string) interface{} {
+	var result interface{}
+	if d, err := strconv.ParseInt(s, 0, 64); err == nil {
+		result = d
+	} else if d, err := strconv.ParseFloat(s, 64); err == nil {
+		result = d
+	} else if d, err := strconv.ParseBool(s); err == nil {
+		result = d
+	} else {
+		result = s
+	}
+
+	return result
 }
