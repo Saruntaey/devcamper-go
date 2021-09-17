@@ -41,8 +41,13 @@ func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps http
 		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
 		return
 	}
-	q := extractData(r.Form)
-	q["deleted"] = false
+	tmp := map[string]interface{}{}
+	for k, v := range r.Form {
+		tmp[k] = v
+	}
+	q := extractData(tmp)
+	q = cleanData(q)
+	// q["deleted"] = false
 	utils.SendJSON(w, http.StatusOK, q)
 	return
 	Bootcamp := bc.connection.Model("Bootcamp")
@@ -220,7 +225,7 @@ func (bc *Bootcamp) DeleteBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 	})
 }
 
-func extractData(data map[string][]string) map[string]interface{} {
+func extractData(data map[string]interface{}) map[string]interface{} {
 	dataFormated := map[string]interface{}{}
 	operator := []string{"gt", "gte", "lt", "lte", "in"}
 	for k, v := range data {
@@ -237,23 +242,13 @@ func extractData(data map[string][]string) map[string]interface{} {
 					key = fmt.Sprintf("$%s", key)
 				}
 			}
-			//convert data type
-			valT := []interface{}{}
-			for _, s := range v {
-				// valT = append(valT, stringToType(s))
-				valT = append(valT, s)
-			}
 
-			if len(valT) == 1 {
-				val = valT[0]
-			} else {
-				val = valT
-			}
+			val = v
 
 		} else {
 			// this mean key have nested (name[in], price[lt], etc.)
 			key = ks[0]
-			nested := map[string][]string{
+			nested := map[string]interface{}{
 				strings.TrimRight(ks[1], "]"): v,
 			}
 			val = extractData(nested)
@@ -261,52 +256,31 @@ func extractData(data map[string][]string) map[string]interface{} {
 			// check if key anlready push to dataFormated
 			// the query sting look like this (price[gt]=1000&price[lt]=2000)
 			if v, ok := dataFormated[key]; ok {
-				comb := map[string][]string{}
+				comb := map[string]interface{}{}
 				// copy pushed data
 				refVal := reflect.ValueOf(v)
 				for _, refValKey := range refVal.MapKeys() {
-					switch v := refVal.MapIndex(refValKey); v.Kind() {
-					case reflect.Array:
-						comb[refValKey.Interface().(string)] = v.Interface().([]string)
-					case reflect.String:
-						comb[refValKey.Interface().(string)] = []string{v.Interface().(string)}
-						fmt.Println("Here")
-					default:
-						fmt.Println("default 1: ", v.Kind())
-					}
-
+					comb[refValKey.String()] = refVal.MapIndex(refValKey).Interface()
 				}
 				// push new data
 				refVal = reflect.ValueOf(val)
 				for _, refValKey := range refVal.MapKeys() {
 					// check if nested key exist
 					// the query sting look like this (role[in]=user&role[in]=admin)
-					if pushedVal, ok := comb[refValKey.Interface().(string)]; ok {
-						valDupKey := []string{}
-						// append pushed data
-						valDupKey = append(valDupKey, pushedVal...)
-						// append new data
-						switch v := refVal.MapIndex(refValKey); v.Kind() {
-						case reflect.Array:
-							valDupKey = append(valDupKey, v.Interface().([]string)...)
-						case reflect.String:
-							valDupKey = append(valDupKey, v.Interface().(string))
-						default:
-							fmt.Println("default 2: ", v.Kind())
+					if pushedVal, ok := comb[refValKey.String()]; ok {
+						n := reflect.ValueOf(pushedVal).Len()
+						valDupKey := make([]interface{}, n+1)
+						// copy pushed data
+						for i := 0; i < n; i++ {
+							valDupKey[i] = reflect.ValueOf(pushedVal).Index(i).String()
 						}
+						// append new data
+						valDupKey = append(valDupKey, refVal.MapIndex(refValKey).String())
 
-						comb[refValKey.Interface().(string)] = valDupKey
+						comb[refValKey.String()] = valDupKey
 
 					} else {
-						switch v := refVal.MapIndex(refValKey); v.Kind() {
-						case reflect.Array:
-							comb[refValKey.Interface().(string)] = v.Interface().([]string)
-						case reflect.String:
-							comb[refValKey.Interface().(string)] = []string{v.Interface().(string)}
-						default:
-							fmt.Println("default 3: ", v.Kind())
-						}
-
+						comb[refValKey.String()] = refVal.MapIndex(refValKey).Interface()
 					}
 
 				}
@@ -316,6 +290,36 @@ func extractData(data map[string][]string) map[string]interface{} {
 		dataFormated[key] = val
 	}
 	return dataFormated
+}
+
+func cleanData(m map[string]interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+	var key string
+	var val interface{}
+	for k, v := range m {
+		key = k
+
+		switch refVal := reflect.ValueOf(v); refVal.Kind() {
+		case reflect.Slice:
+
+			tmps := make([]interface{}, refVal.Len())
+			for i := 0; i < refVal.Len(); i++ {
+				tmps[i] = stringToType(refVal.Index(i).String())
+			}
+			val = tmps
+
+			// remove [] for only one element
+			if refVal := reflect.ValueOf(val); refVal.Len() == 1 {
+				val = refVal.Index(0).Interface()
+			}
+
+		case reflect.Map:
+			val = cleanData(v.(map[string]interface{}))
+		}
+		result[key] = val
+	}
+
+	return result
 }
 
 func stringToType(s string) interface{} {
