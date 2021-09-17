@@ -229,6 +229,7 @@ func extractData(data map[string][]string) map[string]interface{} {
 		var val interface{}
 		ks := strings.Split(k, "[")
 		if len(ks) == 1 {
+			// this mean key is unique and not have nested
 			key = ks[0]
 			// insert operator
 			for _, o := range operator {
@@ -236,56 +237,81 @@ func extractData(data map[string][]string) map[string]interface{} {
 					key = fmt.Sprintf("$%s", key)
 				}
 			}
-			// convert data type
-			vType := []interface{}{}
+			//convert data type
+			valT := []interface{}{}
 			for _, s := range v {
-				if d, err := strconv.ParseInt(s, 0, 64); err == nil {
-					vType = append(vType, d)
-				} else if d, err := strconv.ParseFloat(s, 64); err == nil {
-					vType = append(vType, d)
-				} else if d, err := strconv.ParseBool(s); err == nil {
-					vType = append(vType, d)
-				} else {
-					vType = append(vType, s)
-				}
+				// valT = append(valT, stringToType(s))
+				valT = append(valT, s)
 			}
 
-			if len(vType) == 1 {
-				val = vType[0]
+			if len(valT) == 1 {
+				val = valT[0]
 			} else {
-				val = vType
+				val = valT
 			}
+
 		} else {
+			// this mean key have nested (name[in], price[lt], etc.)
 			key = ks[0]
 			nested := map[string][]string{
 				strings.TrimRight(ks[1], "]"): v,
 			}
 			val = extractData(nested)
-		}
 
-		// check if data exist in dataFormated
-		if v, ok := dataFormated[key]; ok {
-			refVal := reflect.ValueOf(v)
-			if refVal.Kind() == reflect.Map {
-				comb := map[string]interface{}{}
+			// check if key anlready push to dataFormated
+			// the query sting look like this (price[gt]=1000&price[lt]=2000)
+			if v, ok := dataFormated[key]; ok {
+				comb := map[string][]string{}
+				// copy pushed data
+				refVal := reflect.ValueOf(v)
+				for _, refValKey := range refVal.MapKeys() {
+					switch v := refVal.MapIndex(refValKey); v.Kind() {
+					case reflect.Array:
+						comb[refValKey.Interface().(string)] = v.Interface().([]string)
+					case reflect.String:
+						comb[refValKey.Interface().(string)] = []string{v.Interface().(string)}
+						fmt.Println("Here")
+					default:
+						fmt.Println("default 1: ", v.Kind())
+					}
 
-				for _, mKey := range refVal.MapKeys() {
-					comb[fmt.Sprintf("%s", mKey)] = stringToType(fmt.Sprintf("%v", refVal.MapIndex(mKey)))
-					fmt.Println("old", refVal.MapIndex(mKey))
 				}
+				// push new data
+				refVal = reflect.ValueOf(val)
+				for _, refValKey := range refVal.MapKeys() {
+					// check if nested key exist
+					// the query sting look like this (role[in]=user&role[in]=admin)
+					if pushedVal, ok := comb[refValKey.Interface().(string)]; ok {
+						valDupKey := []string{}
+						// append pushed data
+						valDupKey = append(valDupKey, pushedVal...)
+						// append new data
+						switch v := refVal.MapIndex(refValKey); v.Kind() {
+						case reflect.Array:
+							valDupKey = append(valDupKey, v.Interface().([]string)...)
+						case reflect.String:
+							valDupKey = append(valDupKey, v.Interface().(string))
+						default:
+							fmt.Println("default 2: ", v.Kind())
+						}
 
-				newRefVal := reflect.ValueOf(val)
-				for _, nKey := range newRefVal.MapKeys() {
-					comb[fmt.Sprintf("%s", nKey)] = stringToType(fmt.Sprintf("%v", newRefVal.MapIndex(nKey)))
-					fmt.Println("new", newRefVal.MapIndex(nKey))
+						comb[refValKey.Interface().(string)] = valDupKey
+
+					} else {
+						switch v := refVal.MapIndex(refValKey); v.Kind() {
+						case reflect.Array:
+							comb[refValKey.Interface().(string)] = v.Interface().([]string)
+						case reflect.String:
+							comb[refValKey.Interface().(string)] = []string{v.Interface().(string)}
+						default:
+							fmt.Println("default 3: ", v.Kind())
+						}
+
+					}
+
 				}
 				val = comb
-				// fmt.Println(key, val)
-			} else {
-				vs := []interface{}{v}
-				val = append(vs, val)
 			}
-
 		}
 		dataFormated[key] = val
 	}
