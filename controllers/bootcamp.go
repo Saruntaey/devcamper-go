@@ -8,9 +8,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"reflect"
-	"strconv"
-	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/zebresel-com/mongodm"
@@ -19,37 +16,6 @@ import (
 
 type Bootcamp struct {
 	connection *mongodm.Connection
-}
-
-// advance result (sort, selct, limit , etc.)
-type queryOption struct {
-	Select string
-	Sort   string
-	Page   int
-	Limit  int
-}
-
-type Pagination struct {
-	Next struct {
-		Page  int `json:"page,omitempty"`
-		Limit int `json:"limit,omitempty"`
-	} `json:"next"`
-
-	Prev struct {
-		Page  int `json:"page,omitempty"`
-		Limit int `json:"limit,omitempty"`
-	} `json:"prev"`
-}
-
-func (p *Pagination) Fill(page int, limit int, startIndex int, endIndex int, total int) {
-	if endIndex < total {
-		p.Next.Page = page + 1
-		p.Next.Limit = limit
-	}
-	if startIndex > 0 {
-		p.Prev.Page = page - 1
-		p.Prev.Limit = limit
-	}
 }
 
 func NewBootcamp(conn *mongodm.Connection) *Bootcamp {
@@ -66,116 +32,13 @@ func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps http
 		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
 		return
 	}
-	// extract data from url query
-	rawQuery := extractData(convQuery(r.Form))
-	rawQuery = cleanData(rawQuery)
-	bs, err := json.Marshal(rawQuery)
+	respData, httpStatus, err := utils.AdvanceQuery(r.Form, bc.connection.Model("Bootcamp"))
 	if err != nil {
-		utils.SendJSON(w, http.StatusBadRequest, errors.New("bad request data"))
-		return
-	}
-	// load query to struct
-	queryOption := &queryOption{}
-	err = json.Unmarshal(bs, queryOption)
-	if err != nil {
-		log.Println("Unmarshal err: ", err)
-		utils.SendJSON(w, http.StatusInternalServerError, errors.New("server error"))
+		utils.ErrorResponse(w, httpStatus, err)
 		return
 	}
 
-	// create query
-	query := rawQuery
-	// add deleted field
-	query["deleted"] = false
-	// delete options field
-	delete(query, "select")
-	delete(query, "sort")
-	delete(query, "page")
-	delete(query, "limit")
-
-	Bootcamp := bc.connection.Model("Bootcamp")
-	bootcamps := []*models.Bootcamp{}
-
-	// init query
-	q := Bootcamp.Find(query)
-
-	// select fields
-	if queryOption.Select != "" {
-		selects := strings.Split(queryOption.Select, ",")
-		selectQuery := bson.M{}
-		for _, v := range selects {
-			selectQuery[v] = 1
-		}
-		q = q.Select(selectQuery)
-	}
-
-	// sort
-	if queryOption.Sort != "" {
-		sorts := strings.Split(queryOption.Sort, ",")
-		q = q.Sort(sorts...)
-	} else {
-		q = q.Sort("-createdAt")
-	}
-
-	// pagination
-	page := queryOption.Page
-	limit := queryOption.Limit
-	// set default if not provided
-	if page == 0 {
-		page = 1
-	}
-	if limit == 0 {
-		limit = 100
-	}
-
-	startIndex := (page - 1) * limit
-	endIndex := page * limit
-	total, _ := Bootcamp.Find(bson.M{"deleted": false}).Count()
-
-	var pagination Pagination
-	pagination.Fill(page, limit, startIndex, endIndex, total)
-
-	q.Skip(startIndex).Limit(limit)
-
-	// execute query
-	err = q.Exec(&bootcamps)
-	if err != nil {
-		log.Println(err)
-		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
-		return
-	}
-
-	//  response data
-	respData := map[string]interface{}{
-		"success":    true,
-		"count":      len(bootcamps),
-		"pagination": pagination,
-	}
-
-	// remove other field that not selected
-	if queryOption.Select != "" {
-		// list all select field in slice
-		selects := strings.Split(queryOption.Select, ",")
-		// access value of struct field name using reflect
-		refVal := reflect.ValueOf(bootcamps)
-		showFieldBootcamps := make([]map[string]interface{}, len(bootcamps))
-		for i := 0; i < refVal.Len(); i++ {
-			v := map[string]interface{}{}
-			for _, fieldName := range selects {
-				nameInStruc := strings.ToUpper(fieldName[:1]) + strings.ToLower(fieldName[1:])
-				// check if the struct have the field name
-				if val := refVal.Index(i).Elem().FieldByName(nameInStruc); val.IsValid() {
-					v[fieldName] = val.Interface()
-				}
-			}
-			showFieldBootcamps[i] = v
-		}
-		respData["data"] = showFieldBootcamps
-	} else {
-		respData["data"] = bootcamps
-	}
-
-	utils.SendJSON(w, http.StatusOK, respData)
+	utils.SendJSON(w, httpStatus, respData)
 }
 
 // @desc    Get single bootcamp
@@ -334,124 +197,4 @@ func (bc *Bootcamp) DeleteBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 		"success": true,
 		"data":    nil,
 	})
-}
-
-func convQuery(q map[string][]string) map[string]interface{} {
-	tmp := map[string]interface{}{}
-	for k, v := range q {
-		tmp[k] = v
-	}
-	return tmp
-}
-
-func extractData(data map[string]interface{}) map[string]interface{} {
-	dataFormated := map[string]interface{}{}
-	operator := []string{"gt", "gte", "lt", "lte", "in"}
-	for k, v := range data {
-		// extract data
-		var key string
-		var val interface{}
-		ks := strings.Split(k, "[")
-		if len(ks) == 1 {
-			// this mean key is unique and not have nested
-			key = ks[0]
-			// insert operator
-			for _, o := range operator {
-				if key == o {
-					key = fmt.Sprintf("$%s", key)
-				}
-			}
-
-			val = v
-
-		} else {
-			// this mean key have nested (name[in], price[lt], etc.)
-			key = ks[0]
-			nested := map[string]interface{}{
-				strings.TrimRight(ks[1], "]"): v,
-			}
-			val = extractData(nested)
-
-			// check if key anlready push to dataFormated
-			// the query sting look like this (price[gt]=1000&price[lt]=2000)
-			if v, ok := dataFormated[key]; ok {
-				comb := map[string]interface{}{}
-				// copy pushed data
-				refVal := reflect.ValueOf(v)
-				for _, refValKey := range refVal.MapKeys() {
-					comb[refValKey.String()] = refVal.MapIndex(refValKey).Interface()
-				}
-				// push new data
-				refVal = reflect.ValueOf(val)
-				for _, refValKey := range refVal.MapKeys() {
-					// check if nested key exist
-					// the query sting look like this (role[in]=user&role[in]=admin)
-					if pushedVal, ok := comb[refValKey.String()]; ok {
-						n := reflect.ValueOf(pushedVal).Len()
-						valDupKey := make([]interface{}, n+1)
-						// copy pushed data
-						for i := 0; i < n; i++ {
-							valDupKey[i] = reflect.ValueOf(pushedVal).Index(i).String()
-						}
-						// append new data
-						valDupKey = append(valDupKey, refVal.MapIndex(refValKey).String())
-
-						comb[refValKey.String()] = valDupKey
-
-					} else {
-						comb[refValKey.String()] = refVal.MapIndex(refValKey).Interface()
-					}
-
-				}
-				val = comb
-			}
-		}
-		dataFormated[key] = val
-	}
-	return dataFormated
-}
-
-func cleanData(m map[string]interface{}) map[string]interface{} {
-	result := map[string]interface{}{}
-	var key string
-	var val interface{}
-	for k, v := range m {
-		key = k
-
-		switch refVal := reflect.ValueOf(v); refVal.Kind() {
-		case reflect.Slice:
-
-			tmps := make([]interface{}, refVal.Len())
-			for i := 0; i < refVal.Len(); i++ {
-				tmps[i] = stringToType(refVal.Index(i).String())
-			}
-			val = tmps
-
-			// remove [] for only one element
-			if refVal := reflect.ValueOf(val); refVal.Len() == 1 {
-				val = refVal.Index(0).Interface()
-			}
-
-		case reflect.Map:
-			val = cleanData(v.(map[string]interface{}))
-		}
-		result[key] = val
-	}
-
-	return result
-}
-
-func stringToType(s string) interface{} {
-	var result interface{}
-	if d, err := strconv.ParseInt(s, 0, 64); err == nil {
-		result = d
-	} else if d, err := strconv.ParseFloat(s, 64); err == nil {
-		result = d
-	} else if d, err := strconv.ParseBool(s); err == nil {
-		result = d
-	} else {
-		result = s
-	}
-
-	return result
 }
