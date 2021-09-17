@@ -41,15 +41,11 @@ func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps http
 		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
 		return
 	}
-	tmp := map[string]interface{}{}
-	for k, v := range r.Form {
-		tmp[k] = v
-	}
-	q := extractData(tmp)
+
+	q := extractData(convQuery(r.Form))
 	q = cleanData(q)
-	// q["deleted"] = false
-	utils.SendJSON(w, http.StatusOK, q)
-	return
+	q["deleted"] = false
+
 	Bootcamp := bc.connection.Model("Bootcamp")
 	bootcamps := []*models.Bootcamp{}
 
@@ -61,7 +57,6 @@ func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps http
 	}
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"q":       q,
 		"count":   len(bootcamps),
 		"data":    bootcamps,
 	})
@@ -223,6 +218,14 @@ func (bc *Bootcamp) DeleteBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 		"success": true,
 		"data":    nil,
 	})
+}
+
+func convQuery(q map[string][]string) map[string]interface{} {
+	tmp := map[string]interface{}{}
+	for k, v := range q {
+		tmp[k] = v
+	}
+	return tmp
 }
 
 func extractData(data map[string]interface{}) map[string]interface{} {
