@@ -115,7 +115,7 @@ func (bc *Bootcamp) CreateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 		utils.SendJSON(w, http.StatusBadRequest, errors.New("bad data"))
 		return
 	}
-	if valid, issues := bootcamp.Validate(); !valid {
+	if valid, issues := bootcamp.ValidateCreate(); !valid {
 		utils.ErrorResponse(w, http.StatusBadRequest, issues...)
 		return
 	}
