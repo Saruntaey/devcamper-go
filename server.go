@@ -29,6 +29,15 @@ func main() {
 	r.PUT("/api/v1/bootcamps/:id", bc.UpdateBootcamp)
 	r.DELETE("/api/v1/bootcamps/:id", bc.DeleteBootcamp)
 
+	// course router
+	c := controllers.NewCourse(conn)
+	r.GET("/api/v1/courses", c.GetCourses)
+	r.GET("/api/v1/bootcamps/:bootcampId/courses", c.GetCoursesInBootcamp)
+	r.GET("/api/v1/courses/:id", c.GetCourse)
+	r.POST("/api/v1/bootcamps/:bootcampId/courses", c.AddCourse)
+	r.PUT("/api/v1/courses/:id", c.UpdateCourse)
+	r.DELETE("/api/v1/courses/:id", c.DeleteCourse)
+
 	port := os.Getenv("PORT")
 	port = fmt.Sprint(":", port)
 	fmt.Printf("Listening on port %s\n", port)
