@@ -36,3 +36,7 @@ type Bootcamp struct {
 
 	// User          bson.ObjectId `json:"user,omitempty" bson:"user,omitempty"`
 }
+
+func (bc *Bootcamp) Validate(values ...interface{}) (bool, []error) {
+	return true, nil
+}

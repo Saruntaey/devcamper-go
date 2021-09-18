@@ -119,6 +119,24 @@ func (bc *Bootcamp) CreateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 		utils.ErrorResponse(w, http.StatusBadRequest, issues...)
 		return
 	}
+
+	loc := utils.GetLocation(bootcamp.Address)
+	tmp := loc.Results[0].Locations[0]
+	geo := &models.GeoJson{
+		Type:             "Point",
+		Coordinates:      []float64{tmp.LatLng.Lng, tmp.LatLng.Lat},
+		FormattedAddress: fmt.Sprintf("%s, %s, %s %s, %s", tmp.Street, tmp.City, tmp.State, tmp.Zipcode, tmp.Country),
+		Street:           tmp.Street,
+		City:             tmp.City,
+		State:            tmp.State,
+		Zipcode:          tmp.Zipcode,
+		Country:          tmp.Country,
+	}
+	bootcamp.Location = geo
+	bootcamp.Address = ""
+	bootcamp.Photo = "no-photo.jpg"
+	bootcamp.Slug = strings.Join(strings.Split(strings.ToLower(bootcamp.Name), " "), "-")
+
 	err = bootcamp.Save()
 	if v, ok := err.(*mongodm.ValidationError); ok {
 		log.Println(err)
