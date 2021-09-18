@@ -1,4 +1,4 @@
-package utils
+package models
 
 type Pagination struct {
 	Next struct {

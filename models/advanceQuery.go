@@ -1,7 +1,7 @@
-package utils
+package models
 
 import (
-	"devcamper/models"
+	"devcamper/utils"
 	"encoding/json"
 	"errors"
 	"log"
@@ -21,10 +21,20 @@ type queryOption struct {
 	Limit  int
 }
 
+// type ModelQuery interface {
+// 	MallocOne()
+// 	MallocMany()
+// 	GetModel() *mongodm.Model
+// }
+
+// func (m *Model) MallocMany() []*Model {
+// 	return []*Model{}
+// }
+// , m ModelQuery
 func AdvanceQuery(urlQuery map[string][]string, Model *mongodm.Model) (map[string]interface{}, int, error) {
 	// extract data from url query
-	rawQuery := ExtractData(ConvQuery(urlQuery))
-	rawQuery = CleanData(rawQuery)
+	rawQuery := utils.ExtractData(utils.ConvQuery(urlQuery))
+	rawQuery = utils.CleanData(rawQuery)
 	bs, err := json.Marshal(rawQuery)
 	if err != nil {
 		return nil, http.StatusBadRequest, errors.New("bad request data")
@@ -46,14 +56,11 @@ func AdvanceQuery(urlQuery map[string][]string, Model *mongodm.Model) (map[strin
 	delete(query, "page")
 	delete(query, "limit")
 
-	// // this not work
-	// models := []*interface{}{}
-
-	// // this not work
-	// models := []*mongodm.IDocumentBase{}
-
-	// this work
-	models := []*models.Bootcamp{}
+	// Model := m.GetModel()
+	// m.MallocMany()
+	// models := reflect.ValueOf(m).Elem().FieldByName("Models").Interface()
+	// models := reflect.MakeSlice(reflect.TypeOf(m), 1, 1).Interface()
+	models := []*Bootcamp{}
 
 	// init query
 	q := Model.Find(query)
@@ -103,10 +110,12 @@ func AdvanceQuery(urlQuery map[string][]string, Model *mongodm.Model) (map[strin
 		return nil, http.StatusInternalServerError, errors.New("server error")
 	}
 
+	numRetrivedModel := len(models)
+	// numRetrivedModel := reflect.ValueOf(models).Len()
 	//  response data
 	respData := map[string]interface{}{
 		"success":    true,
-		"count":      len(models),
+		"count":      numRetrivedModel,
 		"pagination": pagination,
 	}
 
@@ -116,7 +125,7 @@ func AdvanceQuery(urlQuery map[string][]string, Model *mongodm.Model) (map[strin
 		selects := strings.Split(queryOption.Select, ",")
 		// access value of struct field name using reflect
 		refVal := reflect.ValueOf(models)
-		showFieldModels := make([]map[string]interface{}, len(models))
+		showFieldModels := make([]map[string]interface{}, numRetrivedModel)
 		for i := 0; i < refVal.Len(); i++ {
 			v := map[string]interface{}{}
 			for _, fieldName := range selects {

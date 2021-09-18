@@ -16,11 +16,27 @@ import (
 
 type Bootcamp struct {
 	connection *mongodm.Connection
+	// Model      *Bootcamp
+	// Models     []*Bootcamp
 }
 
 func NewBootcamp(conn *mongodm.Connection) *Bootcamp {
-	return &Bootcamp{conn}
+	return &Bootcamp{
+		connection: conn,
+	}
 }
+
+// func (bc *Bootcamp) GetModel() *mongodm.Model {
+// 	return bc.connection.Model("Bootcamp")
+// }
+
+// func (bc *Bootcamp) MallocOne() {
+// 	bc.Model = &Bootcamp{}
+// }
+
+// func (bc *Bootcamp) MallocMany() {
+// 	bc.Models = []*Bootcamp{}
+// }
 
 // @desc    Get all bootcamps
 // @route   GET /api/v1/bootcamps
@@ -32,7 +48,11 @@ func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps http
 		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
 		return
 	}
-	respData, httpStatus, err := utils.AdvanceQuery(r.Form, bc.connection.Model("Bootcamp"))
+	// bootcamps := []*models.Bootcamp{}
+	// respData, httpStatus, err := utils.AdvanceQuery(r.Form, bc.connection.Model("Bootcamp"), &bootcamps)
+
+	// respData, httpStatus, err := models.AdvanceQuery(r.Form, &Bootcamp{})
+	respData, httpStatus, err := models.AdvanceQuery(r.Form, bc.connection.Model("Bootcamp"))
 	if err != nil {
 		utils.ErrorResponse(w, httpStatus, err)
 		return
