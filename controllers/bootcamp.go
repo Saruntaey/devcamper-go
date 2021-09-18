@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
@@ -250,4 +251,51 @@ func (bc *Bootcamp) DeleteBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 		"success": true,
 		"data":    nil,
 	})
+}
+
+// @desc    Get bootcamps within radius
+// @route   GET /api/v1/bootcamps/radius/:zipcode/:distance
+// @access  Private
+func (bc *Bootcamp) GetBootcampsInRadius(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	zipcode := ps.ByName("zipcode")
+	distance, err := strconv.ParseFloat(ps.ByName("distance"), 64)
+	if err != nil {
+		utils.SendJSON(w, http.StatusBadRequest, errors.New("distance should be number"))
+	}
+	fmt.Printf("zipcode: %s, distance: %v\n", zipcode, distance)
+
+	// get lat/lng from mapquest usint zipcode
+	// TO DO
+	lng := -71.1
+	lat := 42.34
+
+	// Calc radius using radians
+	// Divide dist by radius of earth
+	// earth radius = 3,963mi (6,378km)
+	radius := distance / 3963.0
+
+	Bootcamp := bc.connection.Model("Bootcamp")
+	bootcamps := []*models.Bootcamp{}
+
+	query := bson.M{
+		"location": bson.M{
+			"$geoWithin": bson.M{
+				"$centerSphere": []interface{}{
+					[]float64{
+						lng,
+						lat,
+					},
+					radius,
+				},
+			},
+		},
+	}
+
+	Bootcamp.Find(query).Exec(&bootcamps)
+	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"count":   len(bootcamps),
+		"data":    bootcamps,
+	})
+
 }
