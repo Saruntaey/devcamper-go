@@ -52,15 +52,36 @@ func (bc *Bootcamp) ValidateCreate() (bool, []error) {
 
 	_, validationErrors = bc.DefaultValidate()
 
-	// check website format
-	if regex := regexp.MustCompile(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`); !regex.Match([]byte(bc.Website)) {
-		bc.AppendError(&validationErrors, "Please use a valid URL with HTTP or HTTPS")
-	}
+	validationErrors = append(validationErrors, bc.validateBothCreateAndUpdate()...)
 
 	// check if address is proveded
 	if bc.Address == "" {
 		bc.AppendError(&validationErrors, "Please add an address")
 	}
+
+	return len(validationErrors) == 0, validationErrors
+}
+
+// check data before update bootcamp
+func (bc *Bootcamp) ValidateUpdate() (bool, []error) {
+	var validationErrors []error
+
+	_, validationErrors = bc.DefaultValidate()
+
+	validationErrors = append(validationErrors, bc.validateBothCreateAndUpdate()...)
+
+	return len(validationErrors) == 0, validationErrors
+}
+
+// common data to validate
+func (bc *Bootcamp) validateBothCreateAndUpdate() []error {
+	var validationErrors []error
+
+	// check website format
+	if regex := regexp.MustCompile(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`); !regex.Match([]byte(bc.Website)) {
+		bc.AppendError(&validationErrors, "Please use a valid URL with HTTP or HTTPS")
+	}
+
 	// check careers in list
 	careers := []string{
 		"Web Development",
@@ -93,10 +114,5 @@ func (bc *Bootcamp) ValidateCreate() (bool, []error) {
 		bc.AppendError(&validationErrors, "Rating cannot be more than 10")
 	}
 
-	return len(validationErrors) == 0, validationErrors
+	return validationErrors
 }
-
-// check data before update bootcamp
-// func (bc *Bootcamp) ValidateUpdate() (bool, []error) {
-
-// }

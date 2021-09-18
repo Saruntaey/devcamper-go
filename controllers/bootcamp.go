@@ -191,6 +191,11 @@ func (bc *Bootcamp) UpdateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 	// see https://github.com/zebresel-com/mongodm/issues/20
 	bootcamp.Update(d)
 
+	if valid, issues := bootcamp.ValidateUpdate(); !valid {
+		utils.ErrorResponse(w, http.StatusBadRequest, issues...)
+		return
+	}
+
 	err = bootcamp.Save()
 	if _, ok := err.(*mongodm.ValidationError); ok {
 		// the updated data not comply with the model requirement
