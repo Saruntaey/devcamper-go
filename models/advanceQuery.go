@@ -18,16 +18,6 @@ type queryOption struct {
 	Limit  int
 }
 
-// type ModelQuery interface {
-// 	MallocOne()
-// 	MallocMany()
-// 	GetModel() *mongodm.Model
-// }
-
-// func (m *Model) MallocMany() []*Model {
-// 	return []*Model{}
-// }
-// , m ModelQuery
 func AdvanceQuery(urlQuery map[string][]string, Model *mongodm.Model) (*mongodm.Query, Pagination, error) {
 	// init return data
 	var pagination Pagination
