@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/zebresel-com/mongodm"
@@ -16,8 +17,6 @@ import (
 
 type Bootcamp struct {
 	connection *mongodm.Connection
-	// Model      *Bootcamp
-	// Models     []*Bootcamp
 }
 
 func NewBootcamp(conn *mongodm.Connection) *Bootcamp {
@@ -25,18 +24,6 @@ func NewBootcamp(conn *mongodm.Connection) *Bootcamp {
 		connection: conn,
 	}
 }
-
-// func (bc *Bootcamp) GetModel() *mongodm.Model {
-// 	return bc.connection.Model("Bootcamp")
-// }
-
-// func (bc *Bootcamp) MallocOne() {
-// 	bc.Model = &Bootcamp{}
-// }
-
-// func (bc *Bootcamp) MallocMany() {
-// 	bc.Models = []*Bootcamp{}
-// }
 
 // @desc    Get all bootcamps
 // @route   GET /api/v1/bootcamps
@@ -48,17 +35,40 @@ func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps http
 		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
 		return
 	}
-	// bootcamps := []*models.Bootcamp{}
-	// respData, httpStatus, err := utils.AdvanceQuery(r.Form, bc.connection.Model("Bootcamp"), &bootcamps)
 
-	// respData, httpStatus, err := models.AdvanceQuery(r.Form, &Bootcamp{})
-	respData, httpStatus, err := models.AdvanceQuery(r.Form, bc.connection.Model("Bootcamp"))
+	// create advance query
+	query, pagination, err := models.AdvanceQuery(r.Form, bc.connection.Model("Bootcamp"))
 	if err != nil {
-		utils.ErrorResponse(w, httpStatus, err)
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
 		return
 	}
 
-	utils.SendJSON(w, httpStatus, respData)
+	// execute query
+	bootcamps := []*models.Bootcamp{}
+	err = query.Exec(&bootcamps)
+	if err != nil {
+		log.Println(err)
+		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+		return
+	}
+
+	// prepare response data
+	respData := map[string]interface{}{
+		"success":    true,
+		"count":      len(bootcamps),
+		"pagination": pagination,
+	}
+
+	// hide data that user not request
+	selectField := r.Form["select"]
+	if len(selectField) != 0 {
+		selects := strings.Split(selectField[0], ",")
+		respData["data"] = models.ExtractSelectField(bootcamps, selects)
+	} else {
+		respData["data"] = bootcamps
+	}
+
+	utils.SendJSON(w, http.StatusOK, respData)
 }
 
 // @desc    Get single bootcamp

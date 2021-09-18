@@ -3,9 +3,6 @@ package models
 import (
 	"devcamper/utils"
 	"encoding/json"
-	"errors"
-	"log"
-	"net/http"
 	"reflect"
 	"strings"
 
@@ -31,19 +28,22 @@ type queryOption struct {
 // 	return []*Model{}
 // }
 // , m ModelQuery
-func AdvanceQuery(urlQuery map[string][]string, Model *mongodm.Model) (map[string]interface{}, int, error) {
+func AdvanceQuery(urlQuery map[string][]string, Model *mongodm.Model) (*mongodm.Query, Pagination, error) {
+	// init return data
+	var pagination Pagination
+
 	// extract data from url query
 	rawQuery := utils.ExtractData(utils.ConvQuery(urlQuery))
 	rawQuery = utils.CleanData(rawQuery)
 	bs, err := json.Marshal(rawQuery)
 	if err != nil {
-		return nil, http.StatusBadRequest, errors.New("bad request data")
+		return nil, pagination, err
 	}
 	// load query to struct
 	queryOption := &queryOption{}
 	err = json.Unmarshal(bs, queryOption)
 	if err != nil {
-		return nil, http.StatusInternalServerError, errors.New("server error")
+		return nil, pagination, err
 	}
 
 	// create query
@@ -55,12 +55,6 @@ func AdvanceQuery(urlQuery map[string][]string, Model *mongodm.Model) (map[strin
 	delete(query, "sort")
 	delete(query, "page")
 	delete(query, "limit")
-
-	// Model := m.GetModel()
-	// m.MallocMany()
-	// models := reflect.ValueOf(m).Elem().FieldByName("Models").Interface()
-	// models := reflect.MakeSlice(reflect.TypeOf(m), 1, 1).Interface()
-	models := []*Bootcamp{}
 
 	// init query
 	q := Model.Find(query)
@@ -98,49 +92,27 @@ func AdvanceQuery(urlQuery map[string][]string, Model *mongodm.Model) (map[strin
 	endIndex := page * limit
 	total, _ := Model.Find(bson.M{"deleted": false}).Count()
 
-	var pagination Pagination
 	pagination.Fill(page, limit, startIndex, endIndex, total)
 
 	q.Skip(startIndex).Limit(limit)
 
-	// execute query
-	err = q.Exec(&models)
-	if err != nil {
-		log.Println(err)
-		return nil, http.StatusInternalServerError, errors.New("server error")
-	}
+	return q, pagination, nil
+}
 
-	numRetrivedModel := len(models)
-	// numRetrivedModel := reflect.ValueOf(models).Len()
-	//  response data
-	respData := map[string]interface{}{
-		"success":    true,
-		"count":      numRetrivedModel,
-		"pagination": pagination,
-	}
-
-	// remove other field that not selected
-	if queryOption.Select != "" {
-		// list all select field in slice
-		selects := strings.Split(queryOption.Select, ",")
-		// access value of struct field name using reflect
-		refVal := reflect.ValueOf(models)
-		showFieldModels := make([]map[string]interface{}, numRetrivedModel)
-		for i := 0; i < refVal.Len(); i++ {
-			v := map[string]interface{}{}
-			for _, fieldName := range selects {
-				nameInStruc := strings.ToUpper(fieldName[:1]) + strings.ToLower(fieldName[1:])
-				// check if the struct have the field name
-				if val := refVal.Index(i).Elem().FieldByName(nameInStruc); val.IsValid() {
-					v[fieldName] = val.Interface()
-				}
+func ExtractSelectField(models interface{}, selects []string) []map[string]interface{} {
+	// access value of struct field name using reflect
+	refVal := reflect.ValueOf(models)
+	showFieldModels := make([]map[string]interface{}, refVal.Len())
+	for i := 0; i < refVal.Len(); i++ {
+		v := map[string]interface{}{}
+		for _, fieldName := range selects {
+			nameInStruc := strings.ToUpper(fieldName[:1]) + strings.ToLower(fieldName[1:])
+			// check if the struct have the field name
+			if val := refVal.Index(i).Elem().FieldByName(nameInStruc); val.IsValid() {
+				v[fieldName] = val.Interface()
 			}
-			showFieldModels[i] = v
 		}
-		respData["data"] = showFieldModels
-	} else {
-		respData["data"] = models
+		showFieldModels[i] = v
 	}
-
-	return respData, http.StatusOK, nil
+	return showFieldModels
 }
