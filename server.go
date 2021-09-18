@@ -32,9 +32,9 @@ func main() {
 	// course router
 	c := controllers.NewCourse(conn)
 	r.GET("/api/v1/courses", c.GetCourses)
-	r.GET("/api/v1/bootcamps/:bootcampId/courses", c.GetCoursesInBootcamp)
+	r.GET("/api/v1/bootcamps/:id/courses", c.GetCoursesInBootcamp)
 	r.GET("/api/v1/courses/:id", c.GetCourse)
-	r.POST("/api/v1/bootcamps/:bootcampId/courses", c.AddCourse)
+	r.POST("/api/v1/bootcamps/:id/courses", c.AddCourse)
 	r.PUT("/api/v1/courses/:id", c.UpdateCourse)
 	r.DELETE("/api/v1/courses/:id", c.DeleteCourse)
 

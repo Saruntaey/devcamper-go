@@ -29,10 +29,10 @@ func (c *Course) GetCourses(w http.ResponseWriter, r *http.Request, ps httproute
 }
 
 // @desc    Get all bootcamps
-// @route   GET /api/v1/bootcamps/:bootcampId/courses
+// @route   GET /api/v1/bootcamps/:id/courses
 // @access  Public
 func (c *Course) GetCoursesInBootcamp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	bootcampId := ps.ByName("bootcampId")
+	bootcampId := ps.ByName("id")
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success":  true,
 		"data":     "get all courses in bootcamp",
@@ -53,10 +53,10 @@ func (c *Course) GetCourse(w http.ResponseWriter, r *http.Request, ps httprouter
 }
 
 // @desc    Add course
-// @route   POST /api/v1/bootcamps/:bootcampId/courses
+// @route   POST /api/v1/bootcamps/:id/courses
 // @access  Private
 func (c *Course) AddCourse(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	bootcampId := ps.ByName("bootcampId")
+	bootcampId := ps.ByName("id")
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success":  true,
 		"data":     "add course",
