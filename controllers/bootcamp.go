@@ -53,6 +53,25 @@ func (bc *Bootcamp) GetBootcamps(w http.ResponseWriter, r *http.Request, ps http
 		return
 	}
 
+	// grab courses for each bootcamp (virtual field)
+	Course := bc.connection.Model("Course")
+	for _, bootcamp := range bootcamps {
+		courses := []*models.Course{}
+		query := bson.M{
+			"bootcamp": bootcamp.Id,
+			"deleted":  false,
+		}
+		err := Course.Find(query).Exec(&courses)
+		if err != nil {
+			continue
+		}
+		tmp := []interface{}{}
+		for _, v := range courses {
+			tmp = append(tmp, v)
+		}
+		bootcamp.Courses = tmp
+	}
+
 	// prepare response data
 	respData := map[string]interface{}{
 		"success":    true,

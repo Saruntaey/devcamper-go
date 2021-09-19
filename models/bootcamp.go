@@ -21,22 +21,23 @@ type GeoJson struct {
 
 type Bootcamp struct {
 	mongodm.DocumentBase `json:",inline" bson:",inline"`
-	Name                 string   `json:"name" bson:"name" required:"true" maxLen:"50"`
-	Slug                 string   `json:"slug" bson:"slug"`
-	Description          string   `json:"description" bson:"description" required:"true" maxLen:"500"`
-	Website              string   `json:"website" bson:"website"`
-	Phone                string   `json:"phone" bson:"phone" maxLen:"20"`
-	Email                string   `json:"email" bson:"email" validation:"email"`
-	Address              string   `json:"address,omitempty" bson:"address,omitempty"`
-	Location             *GeoJson `json:"location" bson:"location"`
-	Careers              []string `json:"careers" bson:"careers" required:"true"`
-	AverageRating        float64  `json:"averageRating" bson:"averageRating"`
-	AverageCost          int      `json:"averageCost" bson:"averageCost"`
-	Photo                string   `json:"photo" bson:"photo"`
-	Housing              bool     `json:"housing" bson:"housing"`
-	JobAssistance        bool     `json:"jobAssistance" bson:"jobAssistance"`
-	JobGuarantee         bool     `json:"jobGuarantee" bson:"jobGuarantee"`
-	AcceptGi             bool     `json:"acceptGi" bson:"acceptGi"`
+	Name                 string        `json:"name" bson:"name" required:"true" maxLen:"50"`
+	Slug                 string        `json:"slug" bson:"slug"`
+	Description          string        `json:"description" bson:"description" required:"true" maxLen:"500"`
+	Website              string        `json:"website" bson:"website"`
+	Phone                string        `json:"phone" bson:"phone" maxLen:"20"`
+	Email                string        `json:"email" bson:"email" validation:"email"`
+	Address              string        `json:"address,omitempty" bson:"address,omitempty"`
+	Location             *GeoJson      `json:"location" bson:"location"`
+	Careers              []string      `json:"careers" bson:"careers" required:"true"`
+	AverageRating        float64       `json:"averageRating" bson:"averageRating"`
+	AverageCost          int           `json:"averageCost" bson:"averageCost"`
+	Photo                string        `json:"photo" bson:"photo"`
+	Housing              bool          `json:"housing" bson:"housing"`
+	JobAssistance        bool          `json:"jobAssistance" bson:"jobAssistance"`
+	JobGuarantee         bool          `json:"jobGuarantee" bson:"jobGuarantee"`
+	AcceptGi             bool          `json:"acceptGi" bson:"acceptGi"`
+	Courses              []interface{} `json:"courses,omitempty" bson:"-"`
 
 	// User          bson.ObjectId `json:"user,omitempty" bson:"user,omitempty"`
 }
