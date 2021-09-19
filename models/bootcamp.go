@@ -102,9 +102,10 @@ func (bc *Bootcamp) validateBothCreateAndUpdate() []error {
 				break
 			}
 		}
-	}
-	if !inCareers {
-		bc.AppendError(&validationErrors, fmt.Sprintf("Please select careers in [ %s ]", strings.Join(careers, ", ")))
+		if !inCareers {
+			bc.AppendError(&validationErrors, fmt.Sprintf("Please select careers in [ %s ]", strings.Join(careers, ", ")))
+			break
+		}
 	}
 
 	// check averageRating range
