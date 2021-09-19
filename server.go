@@ -19,6 +19,7 @@ func main() {
 	// mount models to DB
 	conn.Register(&models.Bootcamp{}, "bootcamps")
 	conn.Register(&models.Course{}, "courses")
+	conn.Register(&models.User{}, "users")
 
 	r := httprouter.New()
 
@@ -42,6 +43,17 @@ func main() {
 	r.POST("/api/v1/bootcamps/:id/courses", c.AddCourse)
 	r.PUT("/api/v1/courses/:id", c.UpdateCourse)
 	r.DELETE("/api/v1/courses/:id", c.DeleteCourse)
+
+	// auth router
+	u := controllers.NewUser(conn)
+	r.POST("/api/v1/auth/register", u.Register)
+	r.POST("/api/v1/auth/login", u.Login)
+	r.GET("/api/v1/auth/logout", u.Logout)
+	r.GET("/api/v1/auth/me", u.GetMe)
+	r.PUT("/api/v1/auth/updatedetails", u.UpdateDetails)
+	r.PUT("/api/v1/auth/updatepassword", u.UpdatePassword)
+	r.POST("/api/v1/auth/forgotpassword", u.ForgotPassword)
+	r.PUT("/api/v1/auth/resetpassword/:token", u.ResetPassword)
 
 	port := os.Getenv("PORT")
 	port = fmt.Sprint(":", port)
