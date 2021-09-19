@@ -18,6 +18,7 @@ func main() {
 
 	// mount models to DB
 	conn.Register(&models.Bootcamp{}, "bootcamps")
+	conn.Register(&models.Course{}, "courses")
 
 	r := httprouter.New()
 
