@@ -3,6 +3,7 @@ module devcamper
 go 1.17
 
 require (
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/zebresel-com/mongodm v2.0.1+incompatible
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
