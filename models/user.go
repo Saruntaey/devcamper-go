@@ -1,21 +1,25 @@
 package models
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/zebresel-com/mongodm"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
 	mongodm.DocumentBase `json:",inline" bson:",inline"`
 	Name                 string    `json:"name" bson:"name" required:"true"`
-	Email                string    `json:"email" bson:"eamil" validation:"email" required:"true"`
+	Email                string    `json:"email" bson:"email" validation:"email" required:"true"`
 	Role                 string    `json:"role" bson:"role"`
-	Password             string    `json:"-" bson:"password" minLen:"6"`
-	ResetPasswordToken   string    `json:"-" bson:"resetPasswordToken"`
-	ResetPasswordExpired time.Time `json:"-" bson:"resetPasswordExpired"`
+	PasswordRaw          string    `json:"password,omitempty" bson:"-"`
+	PasswordHash         string    `json:"-" bson:"password"`
+	ResetPasswordToken   string    `json:"-" bson:"resetPasswordToken,omitempty"`
+	ResetPasswordExpired time.Time `json:"-" bson:"resetPasswordExpired,omitempty"`
 }
 
 // override validate function to aviod check before save (will check explicitly)
@@ -70,4 +74,17 @@ func (u *User) validateBothCreateAndUpdate() []error {
 	}
 
 	return validationErrors
+}
+
+func (u *User) HashPassword() error {
+	if len(u.PasswordRaw) < 6 {
+		return errors.New("password shoud be at least 6 characters")
+	}
+	bs, err := bcrypt.GenerateFromPassword([]byte(u.PasswordRaw), bcrypt.DefaultCost)
+	if err != nil {
+		log.Println("cannot hash password: ", err)
+		return errors.New("bad data")
+	}
+	u.PasswordHash = string(bs)
+	return nil
 }
