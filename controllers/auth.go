@@ -126,44 +126,11 @@ func (u *User) Logout(w http.ResponseWriter, r *http.Request, ps httprouter.Para
 // @route   GET /api/v1/auth/me
 // @access  Private
 func (u *User) GetMe(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-
-	var token string
-	// grab token from header
-	if auth := strings.Split(r.Header.Get("Authorization"), " "); auth[0] == "Bearer" {
-		token = auth[1]
-		// grab token from cookie
-	} else if c, err := r.Cookie("token"); err == nil {
-		token = c.Value
-	}
-
-	// no token
-	if len(token) == 0 {
-		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorize"))
+	user := getCurrentUser(u.connection, r)
+	if user == nil {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorized"))
 		return
 	}
-
-	// validate token
-	payload, err := utils.ParseJwt(token)
-	if err != nil {
-		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorize"))
-		return
-	}
-
-	// find user
-	userId := payload.(*utils.Payload).Id
-	User := u.connection.Model("User")
-	user := &models.User{}
-
-	query := bson.M{
-		"_id":     bson.ObjectIdHex(userId),
-		"deleted": false,
-	}
-	err = User.FindOne(query).Exec(user)
-	if _, ok := err.(*mongodm.NotFoundError); ok {
-		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorize"))
-		return
-	}
-
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    user,
@@ -226,4 +193,41 @@ func sendToken(w http.ResponseWriter, user *models.User) {
 		"success": true,
 		"token":   ss,
 	})
+}
+
+func getCurrentUser(conn *mongodm.Connection, r *http.Request) *models.User {
+	var token string
+	// grab token from header
+	if auth := strings.Split(r.Header.Get("Authorization"), " "); auth[0] == "Bearer" {
+		token = auth[1]
+		// grab token from cookie
+	} else if c, err := r.Cookie("token"); err == nil {
+		token = c.Value
+	}
+
+	// no token
+	if len(token) == 0 {
+		return nil
+	}
+
+	// validate token
+	payload, err := utils.ParseJwt(token)
+	if err != nil {
+		return nil
+	}
+
+	// find user
+	userId := payload.(*utils.Payload).Id
+	User := conn.Model("User")
+	user := &models.User{}
+
+	query := bson.M{
+		"_id":     bson.ObjectIdHex(userId),
+		"deleted": false,
+	}
+	err = User.FindOne(query).Exec(user)
+	if _, ok := err.(*mongodm.NotFoundError); ok {
+		return nil
+	}
+	return user
 }
