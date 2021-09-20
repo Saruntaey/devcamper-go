@@ -1,9 +1,14 @@
 package models
 
 import (
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -94,4 +99,15 @@ func (u *User) HashPassword() error {
 func (u *User) MatchPassword(pwdRaw string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(pwdRaw))
 	return err == nil
+}
+
+func (u *User) GenResetPwdToken() string {
+	bs := make([]byte, 20)
+	io.ReadFull(rand.Reader, bs)
+	h := hmac.New(sha256.New, []byte(os.Getenv("JWT_SECRET")))
+	h.Write(bs)
+	u.ResetPasswordToken = fmt.Sprintf("%x", h.Sum(nil))
+	u.ResetPasswordExpired = time.Now().Add(time.Minute * time.Duration(10))
+
+	return fmt.Sprintf("%x", bs)
 }

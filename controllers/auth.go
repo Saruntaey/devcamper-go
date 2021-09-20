@@ -1,16 +1,22 @@
 package controllers
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"devcamper/models"
 	"devcamper/utils"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/zebresel-com/mongodm"
+	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -31,6 +37,14 @@ type UpdateDetails struct {
 type UpdatePassword struct {
 	CPwd string `json:"currentPassword"`
 	NPwd string `json:"newPassword"`
+}
+
+type ForgotPassword struct {
+	Email string `json:"email"`
+}
+
+type ResetPassword struct {
+	Pwd string `json:"password"`
 }
 
 func NewUser(conn *mongodm.Connection) *User {
@@ -242,9 +256,32 @@ func (u *User) UpdatePassword(w http.ResponseWriter, r *http.Request, ps httprou
 // @route   POST /api/v1/auth/forgotpassword
 // @access  Public
 func (u *User) ForgotPassword(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	forgotPwd := ForgotPassword{}
+	json.NewDecoder(r.Body).Decode(&forgotPwd)
+	// check if the email is provided
+	if len(forgotPwd.Email) == 0 {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("please provide email"))
+		return
+	}
+
+	User := u.connection.Model("User")
+	user := &models.User{}
+
+	query := bson.M{
+		"email":   forgotPwd.Email,
+		"deleted": false,
+	}
+	User.FindOne(query).Exec(user)
+	token := user.GenResetPwdToken()
+	err := user.Save()
+	if err != nil {
+		utils.ErrorHandler(w, err)
+	}
+
+	resetPwdURL := fmt.Sprintf("/api/v1/auth/resetpassword/%s", token)
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"sueecee": true,
-		"data":    "Forgot password",
+		"data":    resetPwdURL,
 	})
 }
 
@@ -252,9 +289,71 @@ func (u *User) ForgotPassword(w http.ResponseWriter, r *http.Request, ps httprou
 // @route   PUT /api/v1/auth/resetpassword/:token
 // @access  Public
 func (u *User) ResetPassword(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	token := ps.ByName("token")
+	h := hmac.New(sha256.New, []byte(os.Getenv("JWT_SECRET")))
+	bs, err := hex.DecodeString(token)
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+		return
+	}
+	_, err = h.Write(bs)
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+		return
+	}
+	x := fmt.Sprintf("%x", h.Sum(nil))
+
+	User := u.connection.Model("User")
+	user := &models.User{}
+
+	query := bson.M{
+		"resetPasswordToken": x,
+		"resetPasswordExpired": bson.M{
+			"$gt": time.Now(),
+		},
+		"deleted": false,
+	}
+	err = User.FindOne(query).Exec(user)
+	if _, ok := err.(*mongodm.NotFoundError); ok {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("your token is expired"))
+		return
+	} else if err != nil {
+		utils.ErrorHandler(w, err)
+		return
+	}
+
+	resetPwd := ResetPassword{}
+	json.NewDecoder(r.Body).Decode(&resetPwd)
+	// check if the password is provided
+	if len(resetPwd.Pwd) == 0 {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("please provide a new password"))
+		return
+	}
+	user.PasswordRaw = resetPwd.Pwd
+	err = user.HashPassword()
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusBadRequest, err)
+		return
+	}
+
+	err = user.Save()
+	if err != nil {
+		utils.ErrorHandler(w, err)
+	}
+	// remove field resetPasswordToken and resetPasswordExpired from DB
+	change := mgo.Change{
+		Update: bson.M{
+			//TO DO
+			"$unset": bson.M{
+				"resetPasswordToken":   "",
+				"resetPasswordExpired": "",
+			},
+		},
+	}
+	u.connection.Session.DB(os.Getenv("MONGO_DB")).C("users").FindId(user.Id).Apply(change, user)
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"data":    "Reset password",
+		"data":    user,
 	})
 }
 
