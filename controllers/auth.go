@@ -108,9 +108,17 @@ func (u *User) Login(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 // @route   GET /api/v1/auth/logout
 // @access  Private
 func (u *User) Logout(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	token := "none"
+	// delete cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    token,
+		HttpOnly: true,
+		MaxAge:   -1,
+	})
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"data":    "Logout",
+		"token":   token,
 	})
 }
 
