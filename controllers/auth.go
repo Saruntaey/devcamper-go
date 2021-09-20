@@ -28,6 +28,11 @@ type UpdateDetails struct {
 	Email string `json:"email"`
 }
 
+type UpdatePassword struct {
+	CPwd string `json:"currentPassword"`
+	NPwd string `json:"newPassword"`
+}
+
 func NewUser(conn *mongodm.Connection) *User {
 	return &User{
 		connection: conn,
@@ -195,9 +200,41 @@ func (u *User) UpdateDetails(w http.ResponseWriter, r *http.Request, ps httprout
 // @route   PUT /api/v1/auth/updatepassword
 // @access  Private
 func (u *User) UpdatePassword(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	user := getCurrentUser(u.connection, r)
+	if user == nil {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+	updatePwd := UpdatePassword{}
+	json.NewDecoder(r.Body).Decode(&updatePwd)
+	// check if the data is provided
+	if len(updatePwd.CPwd) == 0 || len(updatePwd.NPwd) == 0 {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("please provied current password and new password"))
+		return
+	}
+
+	// check current password match
+	if !user.MatchPassword(updatePwd.CPwd) {
+		utils.ErrorResponse(w, http.StatusForbidden, errors.New("current password not match"))
+		return
+	}
+
+	user.PasswordRaw = updatePwd.NPwd
+	err := user.HashPassword()
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusBadRequest, err)
+		return
+	}
+
+	err = user.Save()
+	if err != nil {
+		utils.ErrorHandler(w, err)
+		return
+	}
+
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"data":    "Update password",
+		"data":    user,
 	})
 }
 

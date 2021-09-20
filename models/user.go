@@ -86,6 +86,8 @@ func (u *User) HashPassword() error {
 		return errors.New("bad data")
 	}
 	u.PasswordHash = string(bs)
+	// prevent exporting password to json
+	u.PasswordRaw = ""
 	return nil
 }
 
