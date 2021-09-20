@@ -23,6 +23,11 @@ type LoginDetails struct {
 	Password string `json:"password"`
 }
 
+type UpdateDetails struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
 func NewUser(conn *mongodm.Connection) *User {
 	return &User{
 		connection: conn,
@@ -141,9 +146,48 @@ func (u *User) GetMe(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 // @route   PUT /api/v1/auth/updatedetails
 // @access  Private
 func (u *User) UpdateDetails(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	user := getCurrentUser(u.connection, r)
+	if user == nil {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+
+	updateDetails := UpdateDetails{}
+	json.NewDecoder(r.Body).Decode(&updateDetails)
+
+	if len(updateDetails.Email) > 0 {
+		user.Email = updateDetails.Email
+	}
+	if len(updateDetails.Name) > 0 {
+		user.Name = updateDetails.Name
+	}
+
+	if valid, issues := user.ValidateUpdate(); !valid {
+		utils.ErrorResponse(w, http.StatusBadRequest, issues...)
+		return
+	}
+
+	User := u.connection.Model("User")
+	// check if the email is unique (the email of deleted user should not be reuse for resore account feature)
+	query := bson.M{
+		"email": user.Email,
+		"_id": bson.M{
+			"$ne": user.Id,
+		},
+	}
+	if n, _ := User.Find(query).Count(); n > 0 {
+		utils.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("email %s was taken, please use the new one", user.Email))
+		return
+	}
+	err := user.Save()
+	if err != nil {
+		utils.ErrorHandler(w, err)
+		return
+	}
+
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"data":    "Update details",
+		"data":    user,
 	})
 }
 
