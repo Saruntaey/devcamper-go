@@ -31,7 +31,7 @@ func GetJwt(id string) (string, error) {
 	return ss, nil
 }
 
-func checkJwt(ss string) bool {
+func CheckJwt(ss string) bool {
 	t, err := jwt.ParseWithClaims(ss, &Payload{}, func(t *jwt.Token) (interface{}, error) {
 		if t.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 			return []byte{}, errors.New("signed algo not match")
