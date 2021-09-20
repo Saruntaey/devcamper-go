@@ -2,9 +2,12 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/zebresel-com/mongodm"
 )
 
 func SendJSON(w http.ResponseWriter, status int, data interface{}) {
@@ -28,4 +31,16 @@ func ErrorResponse(w http.ResponseWriter, status int, err ...error) {
 		"data":    nil,
 	}
 	SendJSON(w, status, data)
+}
+
+func ErrorHandler(w http.ResponseWriter, err error) {
+	if _, ok := err.(*mongodm.NotFoundError); ok {
+		ErrorResponse(w, http.StatusBadRequest, errors.New("not found resource"))
+	} else if v, ok := err.(*mongodm.ValidationError); ok {
+		ErrorResponse(w, http.StatusBadRequest, v)
+	} else if v, ok := err.(*mongodm.DuplicateError); ok {
+		ErrorResponse(w, http.StatusBadRequest, v)
+	} else {
+		ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+	}
 }

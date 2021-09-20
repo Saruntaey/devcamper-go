@@ -107,12 +107,11 @@ func (bc *Bootcamp) GetBootcamp(w http.ResponseWriter, r *http.Request, ps httpr
 	if _, ok := err.(*mongodm.NotFoundError); ok {
 		utils.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("not found bootcamp with id of %s", id))
 		return
-	} else if err != nil {
-		log.Println(err)
-		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("server error"))
-		return
 	} else if bootcamp.Deleted {
 		utils.ErrorResponse(w, http.StatusNotFound, errors.New("this bootcamp was deleted"))
+		return
+	} else if err != nil {
+		utils.ErrorHandler(w, err)
 		return
 	}
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
@@ -132,9 +131,10 @@ func (bc *Bootcamp) CreateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 	err := json.NewDecoder(r.Body).Decode(bootcamp)
 	if err != nil {
 		log.Println("bad data")
-		utils.SendJSON(w, http.StatusBadRequest, errors.New("bad data"))
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad data"))
 		return
 	}
+
 	if valid, issues := bootcamp.ValidateCreate(); !valid {
 		utils.ErrorResponse(w, http.StatusBadRequest, issues...)
 		return
@@ -158,15 +158,11 @@ func (bc *Bootcamp) CreateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 	bootcamp.Slug = strings.Join(strings.Split(strings.ToLower(bootcamp.Name), " "), "-")
 
 	err = bootcamp.Save()
-	if v, ok := err.(*mongodm.ValidationError); ok {
-		log.Println(err)
-		utils.SendJSON(w, http.StatusBadRequest, v)
-		return
-	} else if err != nil {
-		log.Println(err)
-		utils.SendJSON(w, http.StatusInternalServerError, errors.New("server error"))
+	if err != nil {
+		utils.ErrorHandler(w, err)
 		return
 	}
+
 	utils.SendJSON(w, http.StatusCreated, map[string]interface{}{
 		"success": true,
 		"data":    bootcamp,
@@ -217,15 +213,8 @@ func (bc *Bootcamp) UpdateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 	}
 
 	err = bootcamp.Save()
-	if _, ok := err.(*mongodm.ValidationError); ok {
-		// the updated data not comply with the model requirement
-		// grab all error
-		_, issues := bootcamp.Validate()
-		utils.ErrorResponse(w, http.StatusBadRequest, issues...)
-		return
-	} else if err != nil {
-		log.Println(err)
-		utils.SendJSON(w, http.StatusInternalServerError, errors.New("server error"))
+	if err != nil {
+		utils.ErrorHandler(w, err)
 		return
 	}
 
