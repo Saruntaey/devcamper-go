@@ -88,3 +88,8 @@ func (u *User) HashPassword() error {
 	u.PasswordHash = string(bs)
 	return nil
 }
+
+func (u *User) MatchPassword(pwdRaw string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(pwdRaw))
+	return err == nil
+}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/zebresel-com/mongodm"
@@ -15,6 +16,11 @@ import (
 
 type User struct {
 	connection *mongodm.Connection
+}
+
+type LoginDetails struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 func NewUser(conn *mongodm.Connection) *User {
@@ -58,32 +64,44 @@ func (u *User) Register(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 		utils.ErrorHandler(w, err)
 		return
 	}
-
-	// send jwt via cookie
-	ss, err := utils.GetJwt(user.Id.Hex())
-	if err != nil {
-		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
-		return
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
-		Value:    ss,
-		HttpOnly: true,
-	})
-	utils.SendJSON(w, http.StatusCreated, map[string]interface{}{
-		"success": true,
-		"token":   ss,
-	})
+	sendToken(w, user)
 }
 
 // @desc    Login user
 // @route   POST /api/v1/auth/login
 // @access  Public
 func (u *User) Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
-		"success": true,
-		"data":    "Login",
-	})
+	loginDetails := LoginDetails{}
+	err := json.NewDecoder(r.Body).Decode(&loginDetails)
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad data"))
+		return
+	}
+
+	// check if email and password is provided
+	if len(loginDetails.Email) == 0 || len(loginDetails.Password) == 0 {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("please provied email and password"))
+		return
+	}
+
+	User := u.connection.Model("User")
+	user := &models.User{}
+
+	err = User.FindOne(bson.M{"email": loginDetails.Email}).Exec(user)
+	if _, ok := err.(*mongodm.NotFoundError); ok {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("invalid email or password"))
+		return
+	} else if err != nil {
+		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+		return
+	}
+
+	if !user.MatchPassword(loginDetails.Password) {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("invalid email or password"))
+		return
+	}
+
+	sendToken(w, user)
 }
 
 // @desc    Log user out / clear cookie
@@ -100,9 +118,47 @@ func (u *User) Logout(w http.ResponseWriter, r *http.Request, ps httprouter.Para
 // @route   GET /api/v1/auth/me
 // @access  Private
 func (u *User) GetMe(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+
+	var token string
+	// grab token from header
+	if auth := strings.Split(r.Header.Get("Authorization"), " "); auth[0] == "Bearer" {
+		token = auth[1]
+		// grab token from cookie
+	} else if c, err := r.Cookie("token"); err == nil {
+		token = c.Value
+	}
+
+	// no token
+	if len(token) == 0 {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorize"))
+		return
+	}
+
+	// validate token
+	payload, err := utils.ParseJwt(token)
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorize"))
+		return
+	}
+
+	// find user
+	userId := payload.(*utils.Payload).Id
+	User := u.connection.Model("User")
+	user := &models.User{}
+
+	query := bson.M{
+		"_id":     bson.ObjectIdHex(userId),
+		"deleted": false,
+	}
+	err = User.FindOne(query).Exec(user)
+	if _, ok := err.(*mongodm.NotFoundError); ok {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorize"))
+		return
+	}
+
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"data":    "Get me route",
+		"data":    user,
 	})
 }
 
@@ -143,5 +199,23 @@ func (u *User) ResetPassword(w http.ResponseWriter, r *http.Request, ps httprout
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    "Reset password",
+	})
+}
+
+func sendToken(w http.ResponseWriter, user *models.User) {
+	// send jwt via cookie
+	ss, err := utils.GetJwt(user.Id.Hex())
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    ss,
+		HttpOnly: true,
+	})
+	utils.SendJSON(w, http.StatusCreated, map[string]interface{}{
+		"success": true,
+		"token":   ss,
 	})
 }

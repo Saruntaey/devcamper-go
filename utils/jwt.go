@@ -31,12 +31,16 @@ func GetJwt(id string) (string, error) {
 	return ss, nil
 }
 
-func CheckJwt(ss string) bool {
+func ParseJwt(ss string) (jwt.Claims, error) {
 	t, err := jwt.ParseWithClaims(ss, &Payload{}, func(t *jwt.Token) (interface{}, error) {
 		if t.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 			return []byte{}, errors.New("signed algo not match")
 		}
 		return []byte(os.Getenv("JWT_SECRET")), nil
 	})
-	return err == nil && t.Valid
+	if err == nil && t.Valid {
+		return t.Claims, nil
+	} else {
+		return nil, errors.New("not valid token")
+	}
 }
