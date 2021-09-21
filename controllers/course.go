@@ -228,6 +228,7 @@ func (c *Course) UpdateCourse(w http.ResponseWriter, r *http.Request, ps httprou
 	}
 	// delete unexpected field
 	delete(data, "bootcamp")
+	delete(data, "user")
 
 	// The Update method is incompleted so the error is not handled
 	// see https://github.com/zebresel-com/mongodm/issues/20
