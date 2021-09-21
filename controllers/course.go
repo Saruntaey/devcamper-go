@@ -124,6 +124,16 @@ func (c *Course) GetCourse(w http.ResponseWriter, r *http.Request, ps httprouter
 // @route   POST /api/v1/bootcamps/:id/courses
 // @access  Private
 func (c *Course) AddCourse(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	cUser := getCurrentUser(c.connection, r)
+	if cUser == nil {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+	if !cUser.IsUserInRoles("publisher", "admin") {
+		utils.ErrorResponse(w, http.StatusForbidden, fmt.Errorf("user with %s role do not autorize for this route", cUser.Role))
+		return
+	}
+
 	bootcampId := ps.ByName("id")
 	if !bson.IsObjectIdHex(bootcampId) {
 		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("invalid bootcamp id format"))
@@ -142,6 +152,11 @@ func (c *Course) AddCourse(w http.ResponseWriter, r *http.Request, ps httprouter
 	}
 	if bootcamp.Deleted {
 		utils.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("the bootcamp with the id of %s was deleted", bootcampId))
+		return
+	}
+
+	if bootcamp.User != cUser.Id && cUser.Role != "admin" {
+		utils.ErrorResponse(w, http.StatusForbidden, errors.New("you do not have permission"))
 		return
 	}
 
@@ -167,6 +182,16 @@ func (c *Course) AddCourse(w http.ResponseWriter, r *http.Request, ps httprouter
 // @route   PUT /api/v1/courses/:id
 // @access  Private
 func (c *Course) UpdateCourse(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	cUser := getCurrentUser(c.connection, r)
+	if cUser == nil {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+	if !cUser.IsUserInRoles("publisher", "admin") {
+		utils.ErrorResponse(w, http.StatusForbidden, fmt.Errorf("user with %s role do not autorize for this route", cUser.Role))
+		return
+	}
+
 	id := ps.ByName("id")
 	if !bson.IsObjectIdHex(id) {
 		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("invalid course id format"))
@@ -188,6 +213,12 @@ func (c *Course) UpdateCourse(w http.ResponseWriter, r *http.Request, ps httprou
 		utils.ErrorResponse(w, http.StatusNotFound, errors.New("this course was deleted"))
 		return
 	}
+
+	if course.User != cUser.Id && cUser.Role != "admin" {
+		utils.ErrorResponse(w, http.StatusForbidden, errors.New("you do not have permission"))
+		return
+	}
+
 	var data map[string]interface{}
 	err = json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
@@ -218,6 +249,16 @@ func (c *Course) UpdateCourse(w http.ResponseWriter, r *http.Request, ps httprou
 // @route   DELETE /api/v1/courses/:id
 // @access  Private
 func (c *Course) DeleteCourse(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	cUser := getCurrentUser(c.connection, r)
+	if cUser == nil {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+	if !cUser.IsUserInRoles("publisher", "admin") {
+		utils.ErrorResponse(w, http.StatusForbidden, fmt.Errorf("user with %s role do not autorize for this route", cUser.Role))
+		return
+	}
+
 	id := ps.ByName("id")
 	if !bson.IsObjectIdHex(id) {
 		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("invalid course id format"))
@@ -240,6 +281,12 @@ func (c *Course) DeleteCourse(w http.ResponseWriter, r *http.Request, ps httprou
 		utils.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("no course with id of %s", id))
 		return
 	}
+
+	if course.User != cUser.Id && cUser.Role != "admin" {
+		utils.ErrorResponse(w, http.StatusForbidden, errors.New("you do not have permission"))
+		return
+	}
+
 	course.SetDeleted(true)
 	course.Save()
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{

@@ -16,7 +16,7 @@ type Course struct {
 	MinimumSkill         string      `json:"minimumSkill" bson:"minimumSkill" required:"true"`
 	ScholarshipAvailable bool        `json:"scholarshipAvailable" bson:"scholarshipAvailable"`
 	Bootcamp             interface{} `json:"bootcamp" bson:"bootcamp" model:"Bootcamp" relation:"11" autosave:"true" required:"true"`
-	// User interface{}
+	User                 interface{} `json:"user" bson:"user" model:"User" relation:"11" autosave:"true" required:"true"`
 }
 
 // override validate function to aviod check before save (will check explicitly)
