@@ -14,17 +14,17 @@ type Review struct {
 }
 
 // override validate function to aviod check before save (will check explicitly)
-func (r *Review) Validate(values ...interface{}) (bool, []error) {
+func (rw *Review) Validate(values ...interface{}) (bool, []error) {
 	return true, nil
 }
 
 // check data before create bootcamp
-func (r *Review) ValidateCreate() (bool, []error) {
+func (rw *Review) ValidateCreate() (bool, []error) {
 	var validationErrors []error
 
-	_, validationErrors = r.DefaultValidate()
+	_, validationErrors = rw.DefaultValidate()
 
-	validationErrors = append(validationErrors, r.validateBothCreateAndUpdate()...)
+	validationErrors = append(validationErrors, rw.validateBothCreateAndUpdate()...)
 
 	// append check here
 
@@ -32,12 +32,12 @@ func (r *Review) ValidateCreate() (bool, []error) {
 }
 
 // check data before update bootcamp
-func (r *Review) ValidateUpdate() (bool, []error) {
+func (rw *Review) ValidateUpdate() (bool, []error) {
 	var validationErrors []error
 
-	_, validationErrors = r.DefaultValidate()
+	_, validationErrors = rw.DefaultValidate()
 
-	validationErrors = append(validationErrors, r.validateBothCreateAndUpdate()...)
+	validationErrors = append(validationErrors, rw.validateBothCreateAndUpdate()...)
 
 	// append check here
 
@@ -45,14 +45,14 @@ func (r *Review) ValidateUpdate() (bool, []error) {
 }
 
 // common data to validate
-func (r *Review) validateBothCreateAndUpdate() []error {
+func (rw *Review) validateBothCreateAndUpdate() []error {
 	var validationErrors []error
 
 	// check rating range
-	if r.Rating < 0 {
-		r.AppendError(&validationErrors, "Rating must be at least 1")
-	} else if r.Rating > 10 {
-		r.AppendError(&validationErrors, "Rating cannot be more than 10")
+	if rw.Rating < 0 {
+		rw.AppendError(&validationErrors, "Rating must be at least 1")
+	} else if rw.Rating > 10 {
+		rw.AppendError(&validationErrors, "Rating cannot be more than 10")
 	}
 
 	return validationErrors
