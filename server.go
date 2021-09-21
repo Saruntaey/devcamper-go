@@ -24,6 +24,9 @@ func main() {
 
 	r := httprouter.New()
 
+	// serve static files
+	r.NotFound = http.FileServer(http.Dir("public"))
+
 	// bootcamp router
 	bc := controllers.NewBootcamp(conn)
 	r.GET("/api/v1/bootcamps", bc.GetBootcamps)
