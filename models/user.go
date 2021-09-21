@@ -111,3 +111,12 @@ func (u *User) GenResetPwdToken() string {
 
 	return fmt.Sprintf("%x", bs)
 }
+
+func (u *User) IsUserInRoles(roles ...string) bool {
+	for _, v := range roles {
+		if u.Role == v {
+			return true
+		}
+	}
+	return false
+}
