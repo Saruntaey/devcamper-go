@@ -168,6 +168,10 @@ func (rw *Review) AddReview(w http.ResponseWriter, r *http.Request, ps httproute
 	}
 	review.Save()
 
+	// update averageRating for bootcamp
+	bootcamp.AverageRating = getAvgRating(rw.connection, bootcamp.Id)
+	bootcamp.Save()
+
 	utils.SendJSON(w, http.StatusCreated, map[string]interface{}{
 		"success": true,
 		"data":    review,
@@ -236,6 +240,16 @@ func (rw *Review) UpdateReview(w http.ResponseWriter, r *http.Request, ps httpro
 
 	review.Save()
 
+	if _, ok := data["rating"]; ok {
+		// update averageCost for bootcamp
+		Bootcamp := rw.connection.Model("Bootcamp")
+		bootcamp := &models.Bootcamp{}
+
+		Bootcamp.FindId(review.Bootcamp.(bson.ObjectId)).Exec(bootcamp)
+		bootcamp.AverageRating = getAvgRating(rw.connection, bootcamp.Id)
+		bootcamp.Save()
+	}
+
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    review,
@@ -286,8 +300,40 @@ func (rw *Review) DeleteReview(w http.ResponseWriter, r *http.Request, ps httpro
 
 	review.SetDeleted(true)
 	review.Save()
+
+	// update averageCost for bootcamp
+	Bootcamp := rw.connection.Model("Bootcamp")
+	bootcamp := &models.Bootcamp{}
+
+	Bootcamp.FindId(review.Bootcamp.(bson.ObjectId)).Exec(bootcamp)
+	bootcamp.AverageRating = getAvgRating(rw.connection, bootcamp.Id)
+	bootcamp.Save()
+
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    nil,
 	})
+}
+
+func getAvgRating(conn *mongodm.Connection, bootcampId bson.ObjectId) int {
+	var avg int
+	Review := conn.Model("Review")
+	reviews := []*models.Review{}
+
+	query := bson.M{
+		"bootcamp": bootcampId,
+		"deleted":  false,
+	}
+	err := Review.Find(query).Exec(&reviews)
+	if err != nil {
+		return avg
+	}
+
+	sum := 0
+	for _, v := range reviews {
+		sum += v.Rating
+	}
+
+	avg = sum / len(reviews)
+	return avg
 }

@@ -30,7 +30,7 @@ type Bootcamp struct {
 	Address              string        `json:"address,omitempty" bson:"address,omitempty"`
 	Location             *GeoJson      `json:"location" bson:"location"`
 	Careers              []string      `json:"careers" bson:"careers" required:"true"`
-	AverageRating        float64       `json:"averageRating" bson:"averageRating"`
+	AverageRating        int           `json:"averageRating" bson:"averageRating"`
 	AverageCost          int           `json:"averageCost" bson:"averageCost"`
 	Photo                string        `json:"photo" bson:"photo"`
 	Housing              bool          `json:"housing" bson:"housing"`
