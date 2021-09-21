@@ -38,8 +38,7 @@ type Bootcamp struct {
 	JobGuarantee         bool          `json:"jobGuarantee" bson:"jobGuarantee"`
 	AcceptGi             bool          `json:"acceptGi" bson:"acceptGi"`
 	Courses              []interface{} `json:"courses,omitempty" bson:"-"`
-
-	// User          bson.ObjectId `json:"user,omitempty" bson:"user,omitempty"`
+	User                 interface{}   `json:"user" bson:"user" model:"User" relation:"11" autosave:"true" required:"true"`
 }
 
 // override validate function to aviod check before save (will check explicitly)

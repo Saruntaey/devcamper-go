@@ -124,6 +124,16 @@ func (bc *Bootcamp) GetBootcamp(w http.ResponseWriter, r *http.Request, ps httpr
 // @route   POST /api/v1/bootcamps
 // @access  Private
 func (bc *Bootcamp) CreateBootcamp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	cUser := getCurrentUser(bc.connection, r)
+	if cUser == nil {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+	if !cUser.IsUserInRoles("publisher", "admin") {
+		utils.ErrorResponse(w, http.StatusForbidden, fmt.Errorf("user with %s role do not autorize for this route", cUser.Role))
+		return
+	}
+
 	Bootcamp := bc.connection.Model("Bootcamp")
 	bootcamp := &models.Bootcamp{}
 
@@ -135,6 +145,7 @@ func (bc *Bootcamp) CreateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 		return
 	}
 
+	bootcamp.User = cUser.Id
 	if valid, issues := bootcamp.ValidateCreate(); !valid {
 		utils.ErrorResponse(w, http.StatusBadRequest, issues...)
 		return
@@ -174,6 +185,16 @@ func (bc *Bootcamp) CreateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 // @route   PUT /api/v1/bootcamps/:id
 // @access  Private
 func (bc *Bootcamp) UpdateBootcamp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	cUser := getCurrentUser(bc.connection, r)
+	if cUser == nil {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+	if !cUser.IsUserInRoles("publisher", "admin") {
+		utils.ErrorResponse(w, http.StatusForbidden, fmt.Errorf("user with %s role do not autorize for this route", cUser.Role))
+		return
+	}
+
 	id := ps.ByName("id")
 	if !bson.IsObjectIdHex(id) {
 		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("invalid bootcamp id format"))
@@ -194,6 +215,11 @@ func (bc *Bootcamp) UpdateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 
 	if bootcamp.Deleted {
 		utils.ErrorResponse(w, http.StatusNotFound, errors.New("this bootcamp was deleted"))
+		return
+	}
+
+	if bootcamp.User != cUser.Id && cUser.Role != "admin" {
+		utils.ErrorResponse(w, http.StatusForbidden, errors.New("you do not have permission"))
 		return
 	}
 
@@ -229,6 +255,16 @@ func (bc *Bootcamp) UpdateBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 // @route   DELETE /api/v1/bootcamps/:id
 // @access  Private
 func (bc *Bootcamp) DeleteBootcamp(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	cUser := getCurrentUser(bc.connection, r)
+	if cUser == nil {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+	if !cUser.IsUserInRoles("publisher", "admin") {
+		utils.ErrorResponse(w, http.StatusForbidden, fmt.Errorf("user with %s role do not autorize for this route", cUser.Role))
+		return
+	}
+
 	id := ps.ByName("id")
 	if !bson.IsObjectIdHex(id) {
 		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("invalid bootcamp id format"))
@@ -253,6 +289,11 @@ func (bc *Bootcamp) DeleteBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 		return
 	}
 
+	if bootcamp.User != cUser.Id && cUser.Role != "admin" {
+		utils.ErrorResponse(w, http.StatusForbidden, errors.New("you do not have permission"))
+		return
+	}
+
 	bootcamp.SetDeleted(true)
 	bootcamp.Save()
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
@@ -263,7 +304,7 @@ func (bc *Bootcamp) DeleteBootcamp(w http.ResponseWriter, r *http.Request, ps ht
 
 // @desc    Get bootcamps within radius
 // @route   GET /api/v1/bootcamps/radius/:zipcode/:distance
-// @access  Private
+// @access  Public
 func (bc *Bootcamp) GetBootcampsInRadius(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	zipcode := ps.ByName("zipcode")
 	distance, err := strconv.ParseFloat(ps.ByName("distance"), 64)
