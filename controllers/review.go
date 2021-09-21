@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/zebresel-com/mongodm"
@@ -27,20 +28,45 @@ func NewReview(conn *mongodm.Connection) *Review {
 // @route   GET /api/v1/reviews
 // @access  Public
 func (rw *Review) GetReviews(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	Review := rw.connection.Model("Review")
+	// parse form
+	err := r.ParseForm()
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
+		return
+	}
+
+	// create advance query
+	query, pagination, err := models.AdvanceQuery(r.Form, rw.connection.Model("Review"))
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
+		return
+	}
+
 	reviews := []*models.Review{}
 
-	err := Review.Find(bson.M{"deleted": false}).Exec(&reviews)
+	err = query.Exec(&reviews)
 	if err != nil {
 		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
 		return
 	}
 
-	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
-		"success": true,
-		"count":   len(reviews),
-		"data":    reviews,
-	})
+	// prepare response data
+	respData := map[string]interface{}{
+		"success":    true,
+		"count":      len(reviews),
+		"pagination": pagination,
+	}
+
+	// hide data that user not request
+	selectField := r.Form["select"]
+	if len(selectField) != 0 {
+		selects := strings.Split(selectField[0], ",")
+		respData["data"] = models.ExtractSelectField(reviews, selects)
+	} else {
+		respData["data"] = reviews
+	}
+
+	utils.SendJSON(w, http.StatusOK, respData)
 }
 
 // @desc    Get reviews

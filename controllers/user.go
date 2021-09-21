@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/zebresel-com/mongodm"
@@ -26,23 +27,47 @@ func (u *User) GetUsers(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 		utils.ErrorResponse(w, http.StatusForbidden, fmt.Errorf("user with %s role do not autorize for this route", cUser.Role))
 		return
 	}
-	User := u.connection.Model("User")
+
+	// parse form
+	err := r.ParseForm()
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
+		return
+	}
+
+	// create advance query
+	query, pagination, err := models.AdvanceQuery(r.Form, u.connection.Model("User"))
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
+		return
+	}
+
 	users := []*models.User{}
 
-	query := bson.M{
-		"deleted": false,
-	}
-	err := User.Find(query).Exec(&users)
+	err = query.Exec(&users)
 	if err != nil {
 		utils.ErrorHandler(w, err)
 		return
 	}
 
-	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
-		"success": true,
-		"count":   len(users),
-		"data":    users,
-	})
+	// prepare response data
+	respData := map[string]interface{}{
+		"success":    true,
+		"count":      len(users),
+		"pagination": pagination,
+	}
+
+	// hide data that user not request
+	selectField := r.Form["select"]
+	if len(selectField) != 0 {
+		selects := strings.Split(selectField[0], ",")
+		respData["data"] = models.ExtractSelectField(users, selects)
+	} else {
+		respData["data"] = users
+	}
+
+	utils.SendJSON(w, http.StatusOK, respData)
+
 }
 
 // @desc    Get single user

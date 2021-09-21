@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/zebresel-com/mongodm"
@@ -27,20 +28,46 @@ func NewCourse(conn *mongodm.Connection) *Course {
 // @route   GET /api/v1/bootcamps
 // @access  Public
 func (c *Course) GetCourses(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	Course := c.connection.Model("Course")
+	// parse form
+	err := r.ParseForm()
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
+		return
+	}
+
+	// create advance query
+	query, pagination, err := models.AdvanceQuery(r.Form, c.connection.Model("Course"))
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad request data"))
+		return
+	}
+
 	courses := []*models.Course{}
 
-	err := Course.Find(bson.M{"deleted": false}).Exec(&courses)
+	// execute query
+	err = query.Exec(&courses)
 	if err != nil {
 		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
 		return
 	}
 
-	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
-		"success": true,
-		"count":   len(courses),
-		"data":    courses,
-	})
+	// prepare response data
+	respData := map[string]interface{}{
+		"success":    true,
+		"count":      len(courses),
+		"pagination": pagination,
+	}
+
+	// hide data that user not request
+	selectField := r.Form["select"]
+	if len(selectField) != 0 {
+		selects := strings.Split(selectField[0], ",")
+		respData["data"] = models.ExtractSelectField(courses, selects)
+	} else {
+		respData["data"] = courses
+	}
+
+	utils.SendJSON(w, http.StatusOK, respData)
 }
 
 // @desc    Get all bootcamps
