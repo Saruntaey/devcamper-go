@@ -20,6 +20,7 @@ func main() {
 	conn.Register(&models.Bootcamp{}, "bootcamps")
 	conn.Register(&models.Course{}, "courses")
 	conn.Register(&models.User{}, "users")
+	conn.Register(&models.Review{}, "reviews")
 
 	r := httprouter.New()
 
@@ -61,6 +62,15 @@ func main() {
 	r.POST("/api/v1/users", u.CreateUser)
 	r.PUT("/api/v1/users/:id", u.UpdateUser)
 	r.DELETE("/api/v1/users/:id", u.DeleteUser)
+
+	// review router
+	rw := controllers.NewReview(conn)
+	r.GET("/api/v1/reviews", rw.GetReviews)
+	r.GET("/api/v1/bootcamps/:id/reviews", rw.GetReviewsInBootcamp)
+	r.GET("/api/v1/reviews/:id", rw.GetReview)
+	r.POST("/api/v1/bootcamps/:id/reviews", rw.AddReview)
+	r.PUT("/api/v1/reviews/:id", rw.UpdateReview)
+	r.DELETE("/api/v1/reviews/:id", rw.DeleteReview)
 
 	port := os.Getenv("PORT")
 	port = fmt.Sprint(":", port)
