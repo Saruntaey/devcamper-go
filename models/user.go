@@ -62,20 +62,24 @@ func (u *User) ValidateUpdate() (bool, []error) {
 func (u *User) validateBothCreateAndUpdate() []error {
 	var validationErrors []error
 
-	// check if role in category
-	roles := []string{
-		"user",
-		"publisher",
-	}
-	valid := false
-	for _, v := range roles {
-		if v == u.Role {
-			valid = true
-			break
+	if len(u.Role) == 0 {
+		u.Role = "user"
+	} else {
+		// check if role in category
+		roles := []string{
+			"user",
+			"publisher",
 		}
-	}
-	if !valid {
-		u.AppendError(&validationErrors, fmt.Sprintf("Please select minimum skill in [ %s ]", strings.Join(roles, ", ")))
+		valid := false
+		for _, v := range roles {
+			if v == u.Role {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			u.AppendError(&validationErrors, fmt.Sprintf("Please select minimum skill in [ %s ]", strings.Join(roles, ", ")))
+		}
 	}
 
 	return validationErrors

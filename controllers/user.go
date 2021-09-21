@@ -3,6 +3,7 @@ package controllers
 import (
 	"devcamper/models"
 	"devcamper/utils"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -90,9 +91,48 @@ func (u *User) GetUser(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 // @route   POST /api/v1/users
 // @access  Private/Admin
 func (u *User) CreateUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
+	cUser := getCurrentUser(u.connection, r)
+	if cUser == nil {
+		utils.ErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+	if !cUser.IsUserInRoles("admin") {
+		utils.ErrorResponse(w, http.StatusForbidden, fmt.Errorf("user with %s role do not autorize for this route", cUser.Role))
+		return
+	}
+
+	User := u.connection.Model("User")
+	user := &models.User{}
+	User.New(user)
+
+	err := json.NewDecoder(r.Body).Decode(user)
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusBadRequest, errors.New("bad data request"))
+		return
+	}
+	if valid, issues := user.ValidateCreate(); !valid {
+		utils.ErrorResponse(w, http.StatusBadRequest, issues...)
+		return
+	}
+	// check if the email is unique (the email of deleted user should not be reuse for resore account feature)
+	if n, _ := User.Find(bson.M{"email": user.Email}).Count(); n > 0 {
+		utils.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("email %s was taken, please use the new one", user.Email))
+		return
+	}
+	err = user.HashPassword()
+	if err != nil {
+		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+		return
+	}
+	err = user.Save()
+	if err != nil {
+		utils.ErrorHandler(w, err)
+		return
+	}
+
+	utils.SendJSON(w, http.StatusCreated, map[string]interface{}{
 		"success": true,
-		"data":    "create user",
+		"data":    user,
 	})
 }
 
