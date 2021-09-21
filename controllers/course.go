@@ -173,6 +173,10 @@ func (c *Course) AddCourse(w http.ResponseWriter, r *http.Request, ps httprouter
 	}
 	course.Save()
 
+	// update averageCost for bootcamp
+	bootcamp.AverageCost = getAvgCost(c.connection, bootcamp.Id)
+	bootcamp.Save()
+
 	utils.SendJSON(w, http.StatusCreated, map[string]interface{}{
 		"success": true,
 		"data":    course,
@@ -241,6 +245,16 @@ func (c *Course) UpdateCourse(w http.ResponseWriter, r *http.Request, ps httprou
 
 	course.Save()
 
+	if _, ok := data["tuition"]; ok {
+		// update averageCost for bootcamp
+		Bootcamp := c.connection.Model("Bootcamp")
+		bootcamp := &models.Bootcamp{}
+
+		Bootcamp.FindId(course.Bootcamp.(bson.ObjectId)).Exec(bootcamp)
+		bootcamp.AverageCost = getAvgCost(c.connection, bootcamp.Id)
+		bootcamp.Save()
+	}
+
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    course,
@@ -291,8 +305,40 @@ func (c *Course) DeleteCourse(w http.ResponseWriter, r *http.Request, ps httprou
 
 	course.SetDeleted(true)
 	course.Save()
+
+	// update averageCost for bootcamp
+	Bootcamp := c.connection.Model("Bootcamp")
+	bootcamp := &models.Bootcamp{}
+
+	Bootcamp.FindId(course.Bootcamp.(bson.ObjectId)).Exec(bootcamp)
+	bootcamp.AverageCost = getAvgCost(c.connection, bootcamp.Id)
+	bootcamp.Save()
+
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    nil,
 	})
+}
+
+func getAvgCost(conn *mongodm.Connection, bootcampId bson.ObjectId) int {
+	var avg int
+	Course := conn.Model("Course")
+	courses := []*models.Course{}
+
+	query := bson.M{
+		"bootcamp": bootcampId,
+		"deleted":  false,
+	}
+	err := Course.Find(query).Exec(&courses)
+	if err != nil {
+		return avg
+	}
+
+	sum := float64(0)
+	for _, v := range courses {
+		sum += v.Tuition
+	}
+	// force last digit to be zero
+	avg = int((sum/float64(len(courses)))/10) * 10
+	return avg
 }
