@@ -55,6 +55,13 @@ func main() {
 	r.POST("/api/v1/auth/forgotpassword", u.ForgotPassword)
 	r.PUT("/api/v1/auth/resetpassword/:token", u.ResetPassword)
 
+	// admin router
+	r.GET("/api/v1/users", u.GetUsers)
+	r.GET("/api/v1/users/:id", u.GetUser)
+	r.POST("/api/v1/users", u.CreateUser)
+	r.PUT("/api/v1/users/:id", u.UpdateUser)
+	r.DELETE("/api/v1/users/:id", u.DeleteUser)
+
 	port := os.Getenv("PORT")
 	port = fmt.Sprint(":", port)
 	fmt.Printf("Listening on port %s\n", port)
