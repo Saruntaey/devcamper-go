@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -271,17 +272,34 @@ func (u *User) ForgotPassword(w http.ResponseWriter, r *http.Request, ps httprou
 		"email":   forgotPwd.Email,
 		"deleted": false,
 	}
-	User.FindOne(query).Exec(user)
+	err := User.FindOne(query).Exec(user)
+	if _, ok := err.(*mongodm.NotFoundError); ok {
+		utils.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("no user with email %s", forgotPwd.Email))
+		return
+	} else if err != nil {
+		utils.ErrorHandler(w, err)
+		return
+	}
 	token := user.GenResetPwdToken()
-	err := user.Save()
+	err = user.Save()
 	if err != nil {
 		utils.ErrorHandler(w, err)
 	}
 
-	resetPwdURL := fmt.Sprintf("/api/v1/auth/resetpassword/%s", token)
+	resetPwdURL := url.URL{
+		Scheme: os.Getenv("SCHEME"),
+		Host:   os.Getenv("HOST"),
+		Path:   fmt.Sprintf("/api/v1/auth/resetpassword/%s", token),
+	}
+
+	msg := "You are receiving this email because you (or someone else) has requested the reste of a password. Please make a PUT request to:" + "\r\n" + resetPwdURL.String()
+	if !utils.SendMail(forgotPwd.Email, "Reset password", msg) {
+		utils.ErrorResponse(w, http.StatusInternalServerError, errors.New("server error"))
+		return
+	}
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"sueecee": true,
-		"data":    resetPwdURL,
+		"data":    fmt.Sprintf("the reset password url was sent to email %s", forgotPwd.Email),
 	})
 }
 
