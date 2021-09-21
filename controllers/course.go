@@ -166,6 +166,7 @@ func (c *Course) AddCourse(w http.ResponseWriter, r *http.Request, ps httprouter
 
 	json.NewDecoder(r.Body).Decode(course)
 	course.Bootcamp = bson.ObjectIdHex(bootcampId)
+	course.User = cUser.Id
 	if valid, issue := course.ValidateCreate(); !valid {
 		utils.ErrorResponse(w, http.StatusBadRequest, issue...)
 		return
